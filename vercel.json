@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/kargo-hiring-desk/index.html" }
+  ]
+}
