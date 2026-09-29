@@ -13,7 +13,7 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
    - Scores within 2 points of a threshold are flagged as borderline.
 4. **Brief and email.** Claude writes an interview brief and a draft email. Names are filled in on the page, never sent to Claude.
 5. **Save.** Every screened candidate and their original CV file are stored in Neon Postgres.
-6. **Send.** "Open in Gmail" opens a ready-to-send draft in your own Gmail. After sending, "Mark as sent" records it on the dashboard.
+6. **Send.** Press Send and confirm, and the email goes out through Resend. The send is recorded on the candidate. Without Resend, "Open in Gmail" opens a draft instead, and "Mark as sent" records it.
 
 ## Layout
 
@@ -24,6 +24,7 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 | `api/candidates.js` | Lists, saves, updates and deletes candidates in Neon |
 | `api/cv.js` | Downloads a candidate's original CV |
 | `api/ai.js` | Runs a screening prompt on Claude (`claude-opus-5`) |
+| `api/send.js` | Sends a candidate email through Resend and records it |
 | `lib/server.js` | Shared password check and Neon client |
 | `db/schema.sql` | Database tables: `candidates` and `cv_files` |
 | `kargo-hiring-desk/` | The original claude.ai Artifact version |
@@ -38,10 +39,20 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
    | `DATABASE_URL` | Neon connection string (Neon console → Connect). The Vercel Neon integration can set this for you. |
    | `ANTHROPIC_API_KEY` | A Claude API key from console.anthropic.com |
    | `APP_PASSWORD` | The password people type to open the dashboard |
+   | `RESEND_API_KEY` | A Resend API key with sending access |
+   | `EMAIL_FROM` | Sender, e.g. `Arjun Mehta <hiring@yourdomain.com>`. The domain must be verified in Resend. |
+   | `EMAIL_REPLY_TO` | Optional. Where candidate replies go. |
+   | `EMAIL_TEST_TO` | Optional safety net. While set, every email goes to this address instead of the candidate. |
 
 3. **Redeploy** so the variables take effect.
 
 Every API route requires `APP_PASSWORD`. Candidate data and CV files never appear in this repository.
+
+## Sending safeguards
+
+- Every email needs a click on Send and a second click to confirm.
+- A candidate who has already been emailed can't be emailed again by accident; it takes a deliberate "Send again".
+- Each send carries an idempotency key, so a double click or retry within 24 hours never sends the same email twice.
 
 ## Limits
 

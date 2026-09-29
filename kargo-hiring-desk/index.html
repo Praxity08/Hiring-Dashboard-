@@ -198,8 +198,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hint.bad{color:var(--pass)}
 .hint.good{color:var(--adv)}
 .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
-.confirm p{flex:1 1 220px}
+.confirm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
+.confirm-bar p{flex:1 1 220px}
 .saw{margin:10px 0 0;padding:14px;border-radius:6px;background:var(--sunk);font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:520px;overflow:auto}
 
 .settings{margin-top:28px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
@@ -847,7 +847,7 @@ function emailPanel(c) {
     ? (validEmail(settings.testTo) ? `<p class="hint warn">Test mode is on: Send goes to ${esc(settings.testTo)}, not the candidate.</p>` : `<p class="hint warn">Test mode is on. Add a test address in Email settings below, or turn test mode off, to send.</p>`)
     : (validEmail(e.to) ? "" : `<p class="hint bad">Add the candidate's email address to send.</p>`);
   const sentNote = c.sent ? `<p class="hint">${c.sent.test ? "Last test send" : "Sent"} to ${esc(c.sent.to)} on ${esc(fmtDate(c.sent.at))}${c.sent.kind ? ` (${c.sent.kind === "invite" ? "invite" : "rejection"})` : ""}.</p>` : "";
-  const confirm = state.confirmSend === c.id ? `<div class="confirm" role="alert">
+  const confirm = state.confirmSend === c.id ? `<div class="confirm-bar" role="alert">
       <p>Send “${esc(e.subject)}” to <strong>${esc(to)}</strong> from your Gmail${settings.testMode ? " (test)" : ""}?</p>
       <button class="btn primary" data-act="send-now">Send now</button>
       <button class="btn" data-act="send-cancel">Cancel</button></div>` : "";

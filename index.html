@@ -208,8 +208,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hint.bad{color:var(--pass)}
 .hint.good{color:var(--adv)}
 .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
-.confirm p{flex:1 1 220px}
+.confirm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
+.confirm-bar p{flex:1 1 220px}
 .saw{margin:10px 0 0;padding:14px;border-radius:6px;background:var(--sunk);font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:520px;overflow:auto}
 
 .settings{margin-top:28px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
@@ -306,7 +306,7 @@ a.btn{text-decoration:none;display:inline-block}
       <label>Sign emails as
         <input id="set-sender" type="text" autocomplete="name">
       </label>
-      <p class="hint">"Open in Gmail" opens a ready-to-send draft in your Gmail. After you send it there, press "Mark as sent" so the dashboard records it.</p>
+      <p class="hint">With Resend set up, Send emails the candidate straight from the dashboard. Without it, "Open in Gmail" opens a ready-to-send draft and "Mark as sent" records it.</p>
       <div><button class="btn" id="sign-out" type="button">Sign out on this device</button></div>
     </div>
   </details>
@@ -356,7 +356,7 @@ const LIBS = {
 const state = {
   candidates: [], loaded: false, selected: null, view: "shortlist", lens: "best", tab: "scores",
   jobs: [], edits: {}, confirmSend: null, confirmRemove: null, msg: {}, busy: {}, pendingDetail: false,
-  files: [], dbNote: "",
+  files: [], dbNote: "", cfg: {}, opened: null,
 };
 let sampleReady = false, running = false, sampleChecked = false;
 let authKey = "";
@@ -767,6 +767,29 @@ function aiCopy(err) {
   if (c === "refused") return ["bad", "Claude declined to rewrite this email. Edit it by hand."];
   return ["bad", "The rewrite didn't come through. Try again."];
 }
+function sendCopy(err) {
+  const c = err && err.code;
+  if (c === "unauthorized") return null;
+  if (c === "already_sent" || c === "email_config" || c === "bad_request") return ["bad", err.message || "The email wasn't sent."];
+  if (c === "rate_limited") return ["bad", "Resend's sending limit was reached. Try again in a minute."];
+  if (c === "in_progress") return ["warn", "This email is already being sent. Refresh in a moment."];
+  return ["warn", "Resend didn't confirm the send. Check the Emails log in Resend before sending again. Sending the same email again within 24 hours won't create a duplicate."];
+}
+async function sendNow(c) {
+  const e = currentEmail(c);
+  const again = !!(c.sent && !c.sent.test);
+  state.busy[c.id] = "send"; state.confirmSend = null; state.msg[c.id] = null; renderDetail(true);
+  try {
+    const r = await api("/api/send", { method: "POST", body: { id: c.id, to: e.to.trim(), subject: e.subject, body: e.body, kind: e.kind, role: e.role, again } });
+    state.candidates = state.candidates.map((x) => x.id === c.id ? mergeLocal(x, { email: { kind: e.kind, role: e.role, subject: e.subject, body: e.body }, sent: r.sent, contactEmail: e.to.trim() }) : x);
+    delete state.edits[c.id];
+    state.msg[c.id] = r.recorded === false
+      ? ["warn", "Sent, but the dashboard couldn't record it. Reload before sending again."]
+      : r.sent.test ? ["good", `Test email sent to ${r.sent.to}. ${c.name} didn't receive it.`] : ["good", `Sent to ${r.sent.to}.`];
+  } catch (err) {
+    state.msg[c.id] = sendCopy(err);
+  } finally { delete state.busy[c.id]; renderDetail(true); render(); }
+}
 async function markSent(c) {
   const e = currentEmail(c);
   state.busy[c.id] = "mark"; renderDetail(true);
@@ -919,11 +942,24 @@ function emailPanel(c) {
   const ready = validEmail(e.to) && e.subject.trim() && e.body.trim() && !busy;
   const toNote = validEmail(e.to) ? "" : `<p class="hint bad">Add the candidate's email address to send.</p>`;
   const sentNote = c.sent && !c.sent.test ? `<p class="hint good">Recorded as sent to ${esc(c.sent.to)} on ${esc(fmtDate(c.sent.at))}${c.sent.kind ? ` (${c.sent.kind === "invite" ? "invite" : "rejection"})` : ""}.</p>` : "";
-  const opened = state.opened === c.id ? `<div class="confirm" role="status">
+  const opened = state.opened === c.id ? `<div class="confirm-bar" role="status">
       <p>Did you send it from Gmail? Record it here so the dashboard knows.</p>
       <button class="btn primary" data-act="mark-sent" ${busy ? "disabled" : ""}>${busy === "mark" ? "Saving…" : "Mark as sent"}</button>
       <button class="btn" data-act="opened-cancel">Not yet</button></div>` : "";
   const changed = (c.email && (e.kind !== c.email.kind || e.role !== c.email.role));
+  const viaResend = !!state.cfg.email, testTo = state.cfg.emailTestTo;
+  const deliverTo = testTo || e.to.trim();
+  const confirm = state.confirmSend === c.id ? `<div class="confirm-bar" role="alert">
+      <p>Send “${esc(e.subject)}” to <strong>${esc(deliverTo)}</strong>${testTo ? ` (test, instead of ${esc(e.to.trim())})` : ""}?</p>
+      <button class="btn primary" data-act="send-now">Send now</button>
+      <button class="btn" data-act="send-cancel">Cancel</button></div>` : "";
+  const sendBtn = viaResend
+    ? `<button class="btn primary" id="em-send" data-act="send-ask" ${ready ? "" : "disabled"}>${busy === "send" ? "Sending…" : c.sent && !c.sent.test ? "Send again" : "Send"}</button>`
+    : (ready ? `<a class="btn primary" id="em-gmail" href="${esc(gmailLink(c))}" target="_blank" rel="noopener" data-act="open-gmail">Open in Gmail</a>` : `<button class="btn primary" disabled>Open in Gmail</button>`);
+  const viaNote = viaResend
+    ? `<p class="hint">Sends from ${esc(state.cfg.emailFrom)} through Resend.</p>${testTo ? `<p class="hint warn">Test mode: EMAIL_TEST_TO is set in Vercel, so every email goes to ${esc(testTo)} instead of the candidate. Remove it to email candidates.</p>` : ""}`
+    : `<p class="hint">Resend isn't set up, so emails open as Gmail drafts. Add RESEND_API_KEY and EMAIL_FROM in Vercel to send from here.</p>`;
+  const lastTest = c.sent && c.sent.test ? `<p class="hint">Last test send went to ${esc(c.sent.to)} on ${esc(fmtDate(c.sent.at))}.</p>` : "";
   return `<div class="form">
     <div class="line">
       <label for="em-kind">Email type
@@ -938,15 +974,16 @@ function emailPanel(c) {
     ${toNote}
     <label for="em-subj">Subject<input id="em-subj" type="text" value="${esc(e.subject)}"></label>
     <label for="em-body">Message<textarea id="em-body">${esc(e.body)}</textarea></label>
-    ${opened}
+    ${viaResend ? confirm : opened}
     <div class="actions">
-      ${ready ? `<a class="btn primary" id="em-gmail" href="${esc(gmailLink(c))}" target="_blank" rel="noopener" data-act="open-gmail">Open in Gmail</a>` : `<button class="btn primary" disabled>Open in Gmail</button>`}
+      ${sendBtn}
       <button class="btn" data-act="save" id="em-save" ${isDirty(c.id) && !busy ? "" : "disabled"}>Save changes</button>
       <button class="btn ghost" data-act="copy">Copy email</button>
-      ${c.sent && !c.sent.test ? "" : `<button class="btn ghost" data-act="mark-sent" ${busy || !validEmail(e.to) ? "disabled" : ""}>Mark as sent</button>`}
+      ${viaResend || (c.sent && !c.sent.test) ? "" : `<button class="btn ghost" data-act="mark-sent" ${busy || !validEmail(e.to) ? "disabled" : ""}>Mark as sent</button>`}
       ${msg ? `<span class="hint ${msg[0]}" role="status">${esc(msg[1])}</span>` : ""}
     </div>
-    ${sentNote}
+    ${sentNote}${lastTest}
+    ${viaNote}
   </div>`;
 }
 function sawPanel(c) {
@@ -1056,7 +1093,10 @@ document.addEventListener("click", async (ev) => {
   const c = state.candidates.find((x) => x.id === state.selected);
   if (!c) return;
   const act = t.dataset.act;
-  if (act === "mark-sent") { markSent(c); }
+  if (act === "send-ask") { state.confirmSend = c.id; state.msg[c.id] = null; renderDetail(true); }
+  else if (act === "send-cancel") { state.confirmSend = null; renderDetail(true); }
+  else if (act === "send-now") { sendNow(c); }
+  else if (act === "mark-sent") { markSent(c); }
   else if (act === "opened-cancel") { state.opened = null; renderDetail(true); }
   else if (act === "download-cv") { downloadCv(c); }
   else if (act === "rewrite") { rewriteEmail(c); }
@@ -1085,6 +1125,7 @@ $("#detail").addEventListener("input", (ev) => {
   state.edits[c.id] = { ...(state.edits[c.id] || {}), [f]: ev.target.value };
   const save = $("#em-save"); if (save) save.disabled = false;
   const gm = $("#em-gmail"); if (gm) gm.href = gmailLink(c);
+  const sb = $("#em-send"); if (sb && !state.busy[c.id]) { const e = currentEmail(c); sb.disabled = !(validEmail(e.to) && e.subject.trim() && e.body.trim()); }
 });
 $("#detail").addEventListener("change", (ev) => {
   const c = state.candidates.find((x) => x.id === state.selected);
@@ -1111,6 +1152,7 @@ function showGate(msg) {
 async function start() {
   const r = await api("/api/session", { method: "POST" });
   $("#gate").hidden = true;
+  state.cfg = r.configured;
   sampleReady = !!r.configured.claude; sampleChecked = true;
   renderSetup(r.configured); updateIntake(); renderJobs();
   if (r.configured.database) await loadCandidates();
