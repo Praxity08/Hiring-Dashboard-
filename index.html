@@ -432,7 +432,7 @@ async function api(path, { method = "GET", body, raw = false } = {}) {
   if (!res.ok) throw { code: (data && data.code) || (res.status === 413 ? "too_large" : "server_error"), message: data && data.error };
   return data;
 }
-async function aiJson(prompt) { return (await api("/api/ai", { method: "POST", body: { prompt } })).json; }
+async function aiJson(prompt, schema) { return (await api("/api/ai", { method: "POST", body: { prompt, schema } })).json; }
 function stripCv(doc) { const d = { ...doc }; delete d.id; delete d.cv; return d; }
 async function fileToBase64(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -651,6 +651,31 @@ The candidate's name is hidden from you; use the placeholder.
 
 Reply with only this JSON: {"subject":"...","body":"..."}`;
 }
+/* Response shapes sent with each prompt, so Gemini's JSON always matches what the page reads */
+const CRIT_SCHEMA = { type: "object", properties: { score: { type: "integer", minimum: 1, maximum: 5 }, evidence: { type: "string" } }, required: ["score", "evidence"] };
+const roleSchema = (role) => ({ type: "object", properties: Object.fromEntries(RUBRICS[role].criteria.map((k) => [k.id, CRIT_SCHEMA])), required: RUBRICS[role].criteria.map((k) => k.id) });
+const SCORE_SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: "string" }, total_years: { type: "number" }, pm_years: { type: "number" },
+    relocation: { type: "string", enum: ["willing", "unwilling", "not_stated"] },
+    pm: roleSchema("PM"), spm: roleSchema("SPM"),
+  },
+  required: ["summary", "total_years", "pm_years", "relocation", "pm", "spm"],
+};
+const EMAIL_SCHEMA = { type: "object", properties: { subject: { type: "string" }, body: { type: "string" } }, required: ["subject", "body"] };
+const BRIEF_SCHEMA = {
+  type: "object",
+  properties: {
+    headline: { type: "string" },
+    strengths: { type: "array", items: { type: "string" } },
+    concerns: { type: "array", items: { type: "string" } },
+    probe: { type: "string" },
+    questions: { type: "array", items: { type: "object", properties: { q: { type: "string" }, listen_for: { type: "string" } }, required: ["q", "listen_for"] } },
+    email: EMAIL_SCHEMA,
+  },
+  required: ["headline", "strengths", "concerns", "probe", "questions", "email"],
+};
 function parseScores(r) {
   const out = {};
   for (const role of ROLES) {
@@ -673,6 +698,22 @@ function slug(s) { return String(s).toLowerCase().normalize("NFKD").replace(/[^a
 function hash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36).slice(0, 5); }
 
 async function processJob(job) {
+  if (!job.scored) job.scored = await scoreJob(job);
+  const { c, id } = job.scored;
+  const ov = overview(c);
+  job.stage = "Writing interview brief and email"; renderJobs();
+  const b = await aiJson(briefPrompt(c, ov), BRIEF_SCHEMA);
+  c.brief = {
+    role: ov.top, headline: String(b.headline || ""), strengths: strList(b.strengths, 4), concerns: strList(b.concerns, 4),
+    probe: String(b.probe || ""), questions: (Array.isArray(b.questions) ? b.questions : []).slice(0, 6).map((q) => ({ q: String(q.q || ""), listen_for: String(q.listen_for || "") })).filter((q) => q.q),
+  };
+  c.email = { kind: ov.action, role: ov.top, subject: String((b.email && b.email.subject) || ""), body: String((b.email && b.email.body) || "") };
+  job.stage = "Saving"; renderJobs();
+  await store.put(id, c, job.file);
+  if (!state.selected) state.selected = id;
+  if (job.file.size > MAX_CV_BYTES) job.note = "Screened. The file is over 3 MB, so the original wasn't stored.";
+}
+async function scoreJob(job) {
   job.stage = "Reading file"; renderJobs();
   const raw = await extractText(job.file);
   const text = String(raw).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -681,7 +722,7 @@ async function processJob(job) {
   const red = redact(text, ident);
   job.label = ident.name;
   job.stage = "Scoring against PM and SPM rubrics"; renderJobs();
-  const s = await aiJson(scorePrompt(red.text, ident.city));
+  const s = await aiJson(scorePrompt(red.text, ident.city), SCORE_SCHEMA);
   const scores = parseScores(s);
   const relocation = ["willing", "unwilling"].includes(s.relocation) ? s.relocation : "not_stated";
   const c = {
@@ -692,19 +733,7 @@ async function processJob(job) {
     relocation, gate: gateFor(ident.city, relocation), scores,
     aiText: red.text.slice(0, 24000), removed: red.removed, createdAt: new Date().toISOString(),
   };
-  const ov = overview(c);
-  job.stage = "Writing interview brief and email"; renderJobs();
-  const b = await aiJson(briefPrompt(c, ov));
-  c.brief = {
-    role: ov.top, headline: String(b.headline || ""), strengths: strList(b.strengths, 4), concerns: strList(b.concerns, 4),
-    probe: String(b.probe || ""), questions: (Array.isArray(b.questions) ? b.questions : []).slice(0, 6).map((q) => ({ q: String(q.q || ""), listen_for: String(q.listen_for || "") })).filter((q) => q.q),
-  };
-  c.email = { kind: ov.action, role: ov.top, subject: String((b.email && b.email.subject) || ""), body: String((b.email && b.email.body) || "") };
-  const id = slug(ident.name) + "-" + hash(ident.email || ident.name);
-  job.stage = "Saving"; renderJobs();
-  await store.put(id, c, job.file);
-  if (!state.selected) state.selected = id;
-  if (job.file.size > MAX_CV_BYTES) job.note = "Screened. The file is over 3 MB, so the original wasn't stored.";
+  return { c, id: slug(ident.name) + "-" + hash(ident.email || ident.name) };
 }
 async function worker() {
   let job;
@@ -811,7 +840,7 @@ async function rewriteEmail(c) {
   const e = currentEmail(c);
   state.busy[c.id] = "rewrite"; state.msg[c.id] = null; renderDetail(true);
   try {
-    const r = await aiJson(emailPrompt(c, e.kind, e.role));
+    const r = await aiJson(emailPrompt(c, e.kind, e.role), EMAIL_SCHEMA);
     if (!r || !r.body) throw { code: "invalid_json" };
     await store.patch(c.id, { email: { kind: e.kind, role: e.role, subject: String(r.subject || ""), body: String(r.body) } });
     const ed = state.edits[c.id] || {}; delete ed.subject; delete ed.body; delete ed.kind; delete ed.role;
@@ -899,7 +928,7 @@ function renderJobs() {
   q.innerHTML = state.jobs.map((j, i) => `<li class="job ${j.state}">
     <span class="${j.state === "working" ? "spin" : j.state === "done" ? "tick" : j.state === "error" ? "cross" : "queued"}" aria-hidden="true"></span>
     <span style="min-width:0"><span class="f">${esc(j.file.name)}</span> <span class="st">· ${esc(j.state === "queued" ? "Waiting" : j.stage)}</span></span>
-    <span>${j.state === "error" && sampleReady ? `<button class="btn small" data-retry="${i}">Try again</button>` : ""}${j.state === "done" || j.state === "error" ? `<button class="btn ghost small" data-dismiss="${i}" aria-label="Dismiss">Dismiss</button>` : ""}</span>
+    <span>${j.state === "error" && sampleReady ? `<button class="btn small" data-retry="${i}">${j.scored ? "Try the brief again" : "Try again"}</button>` : ""}${j.state === "done" || j.state === "error" ? `<button class="btn ghost small" data-dismiss="${i}" aria-label="Dismiss">Dismiss</button>` : ""}</span>
   </li>`).join("");
 }
 function dots(n) { return `<span class="dots" aria-label="${n} of 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`; }

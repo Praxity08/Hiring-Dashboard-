@@ -1,12 +1,14 @@
 import { ApiError, FinishReason, GoogleGenAI } from "@google/genai";
-import { authorize } from "../lib/server.js";
+import { authorize, isPlainObject } from "../lib/server.js";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-// Used when the main model is overloaded or out of free-tier quota. Set GEMINI_FALLBACK_MODEL to "none" to turn off.
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash";
-const MODELS = [...new Set([MODEL, FALLBACK_MODEL].filter((m) => m && m !== "none"))];
-const RETRY_DELAYS_MS = [2000, 5000];
+// Tried in order when the main model is overloaded, out of free-tier quota, or returns an unusable reply.
+// GEMINI_FALLBACK_MODEL takes a comma-separated list; "none" turns fallbacks off.
+const FALLBACKS = (process.env.GEMINI_FALLBACK_MODEL || "gemini-3.7-flash,gemini-3.5-flash").split(",").map((m) => m.trim());
+const MODELS = [...new Set([MODEL, ...FALLBACKS].filter((m) => m && m !== "none"))];
+const BUSY_RETRY_DELAYS_MS = [2000, 5000];
 const MAX_PROMPT_CHARS = 60000;
+const MAX_SCHEMA_CHARS = 20000;
 
 let genai = null;
 
@@ -26,39 +28,68 @@ function parseJson(text) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Google's temporary "high demand" / server errors, worth retrying.
 const isBusy = (err) => err instanceof ApiError && [500, 502, 503, 504].includes(err.status);
-const isQuota = (err) => err instanceof ApiError && err.status === 429;
+const canTryNextModel = (err) => isBusy(err) || (err instanceof ApiError && (err.status === 429 || err.status === 404));
 
-// Tries the main model (with short retries while it's busy), then the fallback model.
-async function generate(prompt) {
+class BadReply extends Error {
+  constructor(code, detail) { super(code); this.code = code; this.detail = detail; }
+}
+
+// Turns one Gemini response into parsed JSON, or throws BadReply. Logs why a reply was rejected, never its content.
+function readReply(response, model) {
+  const cand = response.candidates && response.candidates[0];
+  const finish = cand && cand.finishReason;
+  const blocked = response.promptFeedback && response.promptFeedback.blockReason;
+  const usage = response.usageMetadata || {};
+  const diag = `model=${model} finish=${finish} block=${blocked || "-"} textChars=${(response.text || "").length} outTokens=${usage.candidatesTokenCount} thoughtTokens=${usage.thoughtsTokenCount}`;
+  if (blocked || (finish && finish !== FinishReason.STOP && finish !== FinishReason.MAX_TOKENS)) throw new BadReply("refused", diag);
+  if (finish === FinishReason.MAX_TOKENS) throw new BadReply("invalid_json", diag);
+  const json = parseJson(response.text || "");
+  if (json === undefined || !isPlainObject(json)) throw new BadReply("invalid_json", diag);
+  return json;
+}
+
+// Tries each model in turn: busy errors get short retries, an unusable reply gets one retry, then the next model.
+async function generate(prompt, schema) {
+  const config = { responseMimeType: "application/json", maxOutputTokens: 32000 };
+  if (schema) config.responseJsonSchema = schema;
   let lastErr;
   for (const model of MODELS) {
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    let busyTries = 0, badReplies = 0;
+    for (;;) {
       try {
-        const response = await genai.models.generateContent({
-          model,
-          contents: prompt,
-          config: { responseMimeType: "application/json", maxOutputTokens: 16000 },
-        });
-        return { response, model };
+        const response = await genai.models.generateContent({ model, contents: prompt, config });
+        return { json: readReply(response, model), model };
       } catch (err) {
         lastErr = err;
-        if (isBusy(err) && attempt < RETRY_DELAYS_MS.length) {
-          console.warn(`${model} busy (${err.status}), retrying in ${RETRY_DELAYS_MS[attempt]} ms`);
-          await sleep(RETRY_DELAYS_MS[attempt]);
+        if (err instanceof BadReply) {
+          console.warn(`Unusable reply (${err.code}): ${err.detail}`);
+          if (err.code === "refused") throw err;
+          if (badReplies++ < 1) continue;
+          break;
+        }
+        if (err instanceof ApiError && err.status === 400 && config.responseJsonSchema && /schema/i.test(err.message)) {
+          console.warn(`${model} rejected the response schema, retrying without it`);
+          delete config.responseJsonSchema;
+          continue;
+        }
+        if (isBusy(err) && busyTries < BUSY_RETRY_DELAYS_MS.length) {
+          console.warn(`${model} busy (${err.status}), retrying in ${BUSY_RETRY_DELAYS_MS[busyTries]} ms`);
+          await sleep(BUSY_RETRY_DELAYS_MS[busyTries++]);
           continue;
         }
         break;
       }
     }
-    // Only move to the next model for overload or quota; other errors (bad key, bad request) would repeat there too.
-    if (!(isBusy(lastErr) || isQuota(lastErr) || (lastErr instanceof ApiError && lastErr.status === 404))) break;
-    console.warn(`${model} failed (${lastErr.status}), trying next model`);
+    // Bad keys and bad requests would fail the same way on every model, so stop there.
+    if (!(lastErr instanceof BadReply) && !canTryNextModel(lastErr)) break;
+    console.warn(`${model} gave up (${lastErr instanceof BadReply ? lastErr.code : lastErr.status}), trying next model`);
   }
   throw lastErr;
 }
 
 // Runs one screening prompt (scoring, brief or email) on Gemini and returns its JSON answer.
 // The page builds the prompts from anonymised CV text; no names or contact details reach this route.
+// An optional JSON schema from the page pins the reply's shape.
 export default async function handler(req, res) {
   if (!authorize(req, res)) return;
   if (req.method !== "POST") {
@@ -70,7 +101,8 @@ export default async function handler(req, res) {
     res.status(500).json({ code: "server_config", error: "GEMINI_API_KEY is not set. Add it in Vercel > Settings > Environment Variables." });
     return;
   }
-  const prompt = String((req.body || {}).prompt || "");
+  const body = req.body || {};
+  const prompt = String(body.prompt || "");
   if (!prompt.trim()) {
     res.status(400).json({ code: "bad_request", error: "Prompt is empty." });
     return;
@@ -79,27 +111,25 @@ export default async function handler(req, res) {
     res.status(413).json({ code: "prompt_too_large", error: "This CV is too long to score." });
     return;
   }
+  let schema = null;
+  if (body.schema != null) {
+    if (!isPlainObject(body.schema) || JSON.stringify(body.schema).length > MAX_SCHEMA_CHARS) {
+      res.status(400).json({ code: "bad_request", error: "Invalid response schema." });
+      return;
+    }
+    schema = body.schema;
+  }
 
   genai ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   try {
-    const { response, model } = await generate(prompt);
-
-    const finish = response.candidates && response.candidates[0] && response.candidates[0].finishReason;
-    if ((response.promptFeedback && response.promptFeedback.blockReason) || (finish && finish !== FinishReason.STOP && finish !== FinishReason.MAX_TOKENS)) {
-      res.status(422).json({ code: "refused", error: "Gemini declined this request." });
-      return;
-    }
-    if (finish === FinishReason.MAX_TOKENS) {
-      res.status(502).json({ code: "invalid_json", error: "Gemini's answer was cut short." });
-      return;
-    }
-    const json = parseJson(response.text || "");
-    if (json === undefined) {
-      res.status(502).json({ code: "invalid_json", error: "Gemini's reply wasn't valid JSON." });
-      return;
-    }
+    const { json, model } = await generate(prompt, schema);
     res.status(200).json({ json, model });
   } catch (err) {
+    if (err instanceof BadReply) {
+      if (err.code === "refused") res.status(422).json({ code: "refused", error: "Gemini declined this request." });
+      else res.status(502).json({ code: "invalid_json", error: "Gemini's reply couldn't be read, even after retrying. Try again." });
+      return;
+    }
     if (err instanceof ApiError) {
       if (isBusy(err)) {
         console.error(err);
@@ -109,7 +139,7 @@ export default async function handler(req, res) {
       } else if ((err.status === 400 && /api key/i.test(err.message)) || err.status === 401 || err.status === 403) {
         res.status(500).json({ code: "server_config", error: "Gemini rejected the API key. Check GEMINI_API_KEY in Vercel." });
       } else if (err.status === 404) {
-        res.status(500).json({ code: "server_config", error: `The Gemini model "${MODELS.join('" or "')}" isn't available to this key. Set GEMINI_MODEL in Vercel to a model your key can use.` });
+        res.status(500).json({ code: "server_config", error: `None of the Gemini models (${MODELS.join(", ")}) are available to this key. Set GEMINI_MODEL in Vercel to a model your key can use.` });
       } else if (err.status >= 400 && err.status < 500) {
         console.error(err);
         res.status(400).json({ code: "bad_request", error: "Gemini rejected the request." });
