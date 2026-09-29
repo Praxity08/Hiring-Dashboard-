@@ -39,6 +39,7 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
    | `DATABASE_URL` | Neon connection string (Neon console → Connect). The Vercel Neon integration can set this for you. |
    | `GEMINI_API_KEY` | A Gemini API key from aistudio.google.com. The free tier works. |
    | `GEMINI_MODEL` | Optional. Overrides the default model, `gemini-3.8-flash`. |
+   | `GEMINI_FALLBACK_MODEL` | Optional. Model used when the main one is overloaded or out of quota. Defaults to `gemini-3.5-flash`; set `none` to turn off. |
    | `APP_PASSWORD` | The password people type to open the dashboard |
    | `RESEND_API_KEY` | A Resend API key with sending access |
    | `EMAIL_FROM` | Sender, e.g. `Arjun Mehta <hiring@yourdomain.com>`. The domain must be verified in Resend. |
@@ -61,4 +62,5 @@ Every API route requires `APP_PASSWORD`. Candidate data and CV files never appea
 - Scanned PDFs have no readable text; upload a Word or text version instead.
 - Each CV makes two Gemini calls, one for scoring and one for the brief and email.
 - On Gemini's free tier, Google may use prompts to improve its products. CVs are anonymised first, but work history still goes to Google. Link a billing account to the key to stop this.
+- When Gemini is overloaded, the server retries twice, then switches to the fallback model. If both are busy, the dashboard asks you to try again in a minute.
 - Free-tier rate limits apply. If screening stops with a limit message, wait a minute (or until the next day for the daily limit).

@@ -736,6 +736,8 @@ function jobErr(e) {
   if (c === "invalid_json") return "Gemini's reply couldn't be read. Try this CV again.";
   if (c === "too_large") return "This file is too large to save. Upload a version under 3 MB.";
   if (c === "network") return "Couldn't reach the server. Check your connection and try again.";
+  if (c === "ai_busy") return "Gemini is overloaded right now. Wait a minute and press Try again.";
+  if (c === "upstream_error") return (e.message || "The AI service had a problem. Try again.");
   if (c === "bad_request") return (e.message || "The server rejected this CV.");
   if (e && e.name === "PasswordException") return "This PDF is password-protected. Upload an unlocked copy.";
   return "Screening was interrupted. Try this CV again.";
@@ -765,6 +767,7 @@ function aiCopy(err) {
   if (c === "rate_limited") return ["bad", "Gemini's free-tier limit was reached. Edit the email by hand or try again later."];
   if (c === "server_config") return ["bad", err.message || "The server isn't set up for Gemini yet."];
   if (c === "refused") return ["bad", "Gemini declined to rewrite this email. Edit it by hand."];
+  if (c === "ai_busy") return ["bad", "Gemini is overloaded right now. Try the rewrite again in a minute."];
   return ["bad", "The rewrite didn't come through. Try again."];
 }
 function sendCopy(err) {
