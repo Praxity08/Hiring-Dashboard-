@@ -526,19 +526,43 @@ async function extractText(file) {
 /* ---------- Identify and anonymise (runs in the browser) ---------- */
 const CITIES = ["Navi Mumbai", "Mumbai", "Thane", "Bombay", "Pune", "Bengaluru", "Bangalore", "Chennai", "New Delhi", "Delhi", "Gurugram", "Gurgaon", "Noida", "Hyderabad", "Kolkata", "Ahmedabad", "Jaipur", "Kochi", "Chandigarh", "Indore", "Nagpur", "Surat", "Lucknow", "Coimbatore", "Goa", "Vadodara", "Visakhapatnam", "Dubai", "Singapore", "London"];
 function titleCase(s) { return s.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (m, a, b) => a + b.toUpperCase()); }
+const HEADINGS = /^(education|experience|work experience|professional experience|employment|employment history|work history|skills|key skills|technical skills|core competencies|summary|professional summary|profile|professional profile|objective|career objective|contact|contact details|personal details|projects|certifications?|achievements|awards|languages|interests|hobbies|references|about|about me|internships?|publications|leadership|extracurricular|declaration|curriculum vitae|resume|cv|academic qualifications?|qualifications?|positions of responsibility)$/i;
+const NAME_LINE = /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3}$/;
+function tokensIn(text, tokens) {
+  return tokens.every((t) => new RegExp("\\b" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(text));
+}
+// As written in the CV (keeps the CV's capitalisation), else title case.
+function asWritten(text, tokens) {
+  const m = text.match(new RegExp("\\b" + tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s.]+") + "\\b", "i"));
+  const s = m ? m[0].replace(/\s+/g, " ") : tokens.join(" ");
+  return s === s.toUpperCase() || s === s.toLowerCase() ? titleCase(s) : s;
+}
+function nameTokens(s) {
+  return s.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 2 && !/^(cv|resume|final|updated|new|latest|copy|pdf|docx|v\d*)$/.test(t));
+}
 function identify(text, filename) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const em = text.match(EMAIL_RE);
   let name = "";
-  for (const l of lines.slice(0, 3)) {
-    const words = l.split(/\s+/);
-    if (/^[A-Za-z][A-Za-z.' -]{1,48}$/.test(l) && words.length >= 1 && words.length <= 4 && !/resume|curriculum|vitae|profile|summary|experience/i.test(l)) { name = l; break; }
-  }
+  // 1. The file name, when its words also appear in the CV (e.g. 01_rohan_mehta.pdf).
+  const fromFile = nameTokens(filename.replace(/\.[^.]+$/, ""));
+  if (fromFile.length >= 2 && fromFile.length <= 4 && tokensIn(text, fromFile)) name = asWritten(text, fromFile);
+  // 2. A short, name-shaped line near the top that isn't a section heading.
   if (!name) {
-    name = filename.replace(/\.[^.]+$/, "").replace(/^(cv|resume)[_ -]*\d*[_ -]*/i, "").replace(/[_-]+/g, " ").replace(/\b(cv|resume)\b/ig, "").trim() || "Unnamed candidate";
+    for (const l of lines.slice(0, 10)) {
+      const words = l.split(/\s+/);
+      if (NAME_LINE.test(l) && words.length >= 2 && words.length <= 4 && !HEADINGS.test(l) && !words.some((w) => HEADINGS.test(w))) { name = l; break; }
+    }
   }
+  // 3. The email address, when its parts appear in the CV (e.g. rohan.mehta@...).
+  if (!name && em) {
+    const fromEmail = nameTokens(em[0].split("@")[0]).filter((t) => t.length >= 3);
+    if (fromEmail.length >= 2 && tokensIn(text, fromEmail.slice(0, 3))) name = asWritten(text, fromEmail.slice(0, 3));
+  }
+  // 4. Whatever the file name gives us.
+  if (!name) name = fromFile.length ? titleCase(fromFile.join(" ")) : "Unnamed candidate";
   if (name === name.toUpperCase() || name === name.toLowerCase()) name = titleCase(name);
   const header = lines.slice(0, 6).join("  ");
-  const em = text.match(EMAIL_RE);
   const found = [];
   for (const city of CITIES) {
     if (new RegExp("\\b" + city + "\\b", "i").test(header) && !found.some((f) => f.includes(city) || city.includes(f))) found.push(city);
