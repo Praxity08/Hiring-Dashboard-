@@ -1,5 +1,5 @@
 {
-  "rewrites": [
-    { "source": "/", "destination": "/kargo-hiring-desk/index.html" }
-  ]
+  "functions": {
+    "api/ai.js": { "maxDuration": 300 }
+  }
 }
