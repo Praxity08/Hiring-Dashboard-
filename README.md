@@ -5,13 +5,13 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 ## How it works
 
 1. **Upload.** Drop in PDF, Word (.docx) or text CVs and choose the roles they applied for.
-2. **Anonymise.** Names, email addresses, phone numbers and profile links are removed in the browser before anything goes to Claude. The city is kept for the Mumbai gate.
-3. **Score.** Claude scores every criterion of both rubrics 1–5, with a reason taken from the CV. The page calculates the weighted totals: sum of weight × score ÷ 5, out of 100.
+2. **Anonymise.** Names, email addresses, phone numbers and profile links are removed in the browser before anything goes to Gemini. The city is kept for the Mumbai gate.
+3. **Score.** Gemini scores every criterion of both rubrics 1–5, with a reason taken from the CV. The page calculates the weighted totals: sum of weight × score ÷ 5, out of 100.
    - 75 and above: advance
    - 60–74: interview, and probe the lowest-scoring criterion
    - Under 60: pass
    - Scores within 2 points of a threshold are flagged as borderline.
-4. **Brief and email.** Claude writes an interview brief and a draft email. Names are filled in on the page, never sent to Claude.
+4. **Brief and email.** Gemini writes an interview brief and a draft email. Names are filled in on the page, never sent to Gemini.
 5. **Save.** Every screened candidate and their original CV file are stored in Neon Postgres.
 6. **Send.** Press Send and confirm, and the email goes out through Resend. The send is recorded on the candidate. Without Resend, "Open in Gmail" opens a draft instead, and "Mark as sent" records it.
 
@@ -23,7 +23,7 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 | `api/session.js` | Checks the password and reports which settings are missing |
 | `api/candidates.js` | Lists, saves, updates and deletes candidates in Neon |
 | `api/cv.js` | Downloads a candidate's original CV |
-| `api/ai.js` | Runs a screening prompt on Claude (`claude-opus-5`) |
+| `api/ai.js` | Runs a screening prompt on Gemini (`gemini-3.8-flash` by default) |
 | `api/send.js` | Sends a candidate email through Resend and records it |
 | `lib/server.js` | Shared password check and Neon client |
 | `db/schema.sql` | Database tables: `candidates` and `cv_files` |
@@ -37,7 +37,8 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | Neon connection string (Neon console → Connect). The Vercel Neon integration can set this for you. |
-   | `ANTHROPIC_API_KEY` | A Claude API key from console.anthropic.com |
+   | `GEMINI_API_KEY` | A Gemini API key from aistudio.google.com. The free tier works. |
+   | `GEMINI_MODEL` | Optional. Overrides the default model, `gemini-3.8-flash`. |
    | `APP_PASSWORD` | The password people type to open the dashboard |
    | `RESEND_API_KEY` | A Resend API key with sending access |
    | `EMAIL_FROM` | Sender, e.g. `Arjun Mehta <hiring@yourdomain.com>`. The domain must be verified in Resend. |
@@ -58,4 +59,6 @@ Every API route requires `APP_PASSWORD`. Candidate data and CV files never appea
 
 - CV files over 3 MB are still screened, but the original file isn't stored.
 - Scanned PDFs have no readable text; upload a Word or text version instead.
-- Each CV makes two Claude calls, one for scoring and one for the brief and email, so a CV takes about a minute.
+- Each CV makes two Gemini calls, one for scoring and one for the brief and email.
+- On Gemini's free tier, Google may use prompts to improve its products. CVs are anonymised first, but work history still goes to Google. Link a billing account to the key to stop this.
+- Free-tier rate limits apply. If screening stops with a limit message, wait a minute (or until the next day for the daily limit).

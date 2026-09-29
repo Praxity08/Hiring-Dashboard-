@@ -8,7 +8,7 @@ export default function handler(req, res) {
     ok: true,
     configured: {
       database: Boolean(process.env.DATABASE_URL),
-      claude: Boolean(process.env.ANTHROPIC_API_KEY),
+      ai: Boolean(process.env.GEMINI_API_KEY),
       email: emailReady,
       emailFrom: emailReady ? process.env.EMAIL_FROM : null,
       emailTestTo: emailReady ? (process.env.EMAIL_TEST_TO || "").trim() || null : null,

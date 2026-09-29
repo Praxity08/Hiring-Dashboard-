@@ -2,9 +2,11 @@
   "name": "kargo-hiring-desk",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.129.0",
+    "@google/genai": "^2.24.0",
     "@neondatabase/serverless": "^1.1.0"
   }
 }

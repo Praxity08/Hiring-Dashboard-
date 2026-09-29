@@ -275,9 +275,9 @@ a.btn{text-decoration:none;display:inline-block}
       </div>
       <p class="privacy">
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 2.5 3.8v3.9c0 3.2 2.3 6 5.5 6.8 3.2-.8 5.5-3.6 5.5-6.8V3.8L8 1.5Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-        <span>Names, email addresses, phone numbers and profile links are stripped in your browser before Claude reads a CV. The city stays, because the Mumbai gate needs it. Email drafts get the name filled in on this page.</span>
+        <span>Names, email addresses, phone numbers and profile links are stripped in your browser before Gemini reads a CV. The city stays, because the Mumbai gate needs it. Email drafts get the name filled in on this page.</span>
       </p>
-      <p class="unavail" id="sample-unavail" hidden>Scoring is off because the server has no Claude API key. Add ANTHROPIC_API_KEY in Vercel's environment variables, then redeploy.</p>
+      <p class="unavail" id="sample-unavail" hidden>Scoring is off because the server has no Gemini API key. Add GEMINI_API_KEY in Vercel's environment variables, then redeploy.</p>
     </div>
   </section>
 
@@ -311,7 +311,7 @@ a.btn{text-decoration:none;display:inline-block}
     </div>
   </details>
 
-  <p class="how"><strong>How scoring works.</strong> Claude scores each criterion 1–5 from evidence in the anonymised CV. This page does the maths: weighted score = sum of weight × score ÷ 5, out of 100. <strong>75+</strong> advance · <strong>60–74</strong> interview and probe the lowest criterion · <strong>under 60</strong> pass. Scores within 2 points of a line are marked borderline. Gate (not scored): Mumbai-based or willing to relocate. When a CV doesn't say, the candidate is marked "confirm relocation" and the invite asks.</p>
+  <p class="how"><strong>How scoring works.</strong> Gemini scores each criterion 1–5 from evidence in the anonymised CV. This page does the maths: weighted score = sum of weight × score ÷ 5, out of 100. <strong>75+</strong> advance · <strong>60–74</strong> interview and probe the lowest criterion · <strong>under 60</strong> pass. Scores within 2 points of a line are marked borderline. Gate (not scored): Mumbai-based or willing to relocate. When a CV doesn't say, the candidate is marked "confirm relocation" and the invite asks.</p>
 </div>
 
 <script>
@@ -415,7 +415,7 @@ function gateFor(city, relocation) {
 const GATE_STAMP = { pass: "Gate cleared", confirm: "Confirm relocation", fail: "Gate failed" };
 const fill = (s, c) => String(s || "").split("{{first_name}}").join(c.firstName || "there").split("{{sender_name}}").join(settings.sender || "The Kargo team");
 
-/* ---------- Server API (Neon for storage, Claude via /api/ai) ---------- */
+/* ---------- Server API (Neon for storage, Gemini via /api/ai) ---------- */
 async function api(path, { method = "GET", body, raw = false } = {}) {
   let res;
   try {
@@ -730,10 +730,10 @@ function jobErr(e) {
   if (c === "lib_failed") return "The file reader didn't load. Check your connection and try again.";
   if (c === "server_config") return (e.message || "The server isn't fully set up.");
   if (c === "unauthorized") return "Enter the password again, then try this CV.";
-  if (c === "rate_limited") return "The Claude API rate limit was reached. Try again in a minute.";
+  if (c === "rate_limited") return "Gemini's free-tier limit was reached. Wait a minute and try again, or tomorrow if the daily limit is used up.";
   if (c === "prompt_too_large") return "This CV is too long to score. Trim it and upload again.";
-  if (c === "refused") return "Claude declined to score this CV.";
-  if (c === "invalid_json") return "Claude's reply couldn't be read. Try this CV again.";
+  if (c === "refused") return "Gemini declined to score this CV.";
+  if (c === "invalid_json") return "Gemini's reply couldn't be read. Try this CV again.";
   if (c === "too_large") return "This file is too large to save. Upload a version under 3 MB.";
   if (c === "network") return "Couldn't reach the server. Check your connection and try again.";
   if (c === "bad_request") return (e.message || "The server rejected this CV.");
@@ -762,9 +762,9 @@ function gmailLink(c) {
 function aiCopy(err) {
   const c = err && err.code;
   if (c === "unauthorized") return null;
-  if (c === "rate_limited") return ["bad", "The Claude API rate limit was reached. Edit the email by hand or try again in a minute."];
-  if (c === "server_config") return ["bad", err.message || "The server isn't set up for Claude yet."];
-  if (c === "refused") return ["bad", "Claude declined to rewrite this email. Edit it by hand."];
+  if (c === "rate_limited") return ["bad", "Gemini's free-tier limit was reached. Edit the email by hand or try again later."];
+  if (c === "server_config") return ["bad", err.message || "The server isn't set up for Gemini yet."];
+  if (c === "refused") return ["bad", "Gemini declined to rewrite this email. Edit it by hand."];
   return ["bad", "The rewrite didn't come through. Try again."];
 }
 function sendCopy(err) {
@@ -966,9 +966,9 @@ function emailPanel(c) {
         <select id="em-kind"><option value="invite" ${e.kind === "invite" ? "selected" : ""}>Interview invite</option><option value="reject" ${e.kind === "reject" ? "selected" : ""}>Rejection</option></select></label>
       <label for="em-role">Role
         <select id="em-role">${ROLES.map((r) => `<option value="${r}" ${e.role === r ? "selected" : ""}>${RUBRICS[r].label}</option>`).join("")}</select></label>
-      <div><button class="btn" data-act="rewrite" ${sampleReady && !busy ? "" : "disabled"}>${busy === "rewrite" ? "Rewriting…" : "Rewrite with Claude"}</button></div>
+      <div><button class="btn" data-act="rewrite" ${sampleReady && !busy ? "" : "disabled"}>${busy === "rewrite" ? "Rewriting…" : "Rewrite with Gemini"}</button></div>
     </div>
-    ${changed ? `<p class="hint warn">You changed the email type or role. Press Rewrite with Claude to redraft it to match.</p>` : ""}
+    ${changed ? `<p class="hint warn">You changed the email type or role. Press Rewrite with Gemini to redraft it to match.</p>` : ""}
     <label for="em-to">To
       <input id="em-to" type="email" value="${esc(e.to)}" placeholder="candidate@example.com"></label>
     ${toNote}
@@ -993,7 +993,7 @@ function sawPanel(c) {
   if (r.email) parts.push(`${r.email} email address${r.email === 1 ? "" : "es"}`);
   if (r.phone) parts.push(`${r.phone} phone number${r.phone === 1 ? "" : "s"}`);
   if (r.link) parts.push(`${r.link} profile link${r.link === 1 ? "" : "s"}`);
-  return `<p>This is the exact CV text Claude scored. Removed in the browser first: ${parts.length ? parts.join(", ") : "nothing found to remove"}.</p>
+  return `<p>This is the exact CV text Gemini scored. Removed in the browser first: ${parts.length ? parts.join(", ") : "nothing found to remove"}.</p>
     <pre class="saw">${esc(c.aiText || "Not recorded.")}</pre>`;
 }
 function renderDetail(force) {
@@ -1008,7 +1008,7 @@ function renderDetail(force) {
   const rec = o.gate === "fail" ? "Reject: fails the Mumbai gate"
     : o.action === "invite" ? `Invite for ${RUBRICS[o.top].label} interview` : "Send a rejection";
   const sub = o.action === "invite" && band(o.topScore) === "interview" ? ` · probe ${low.k.name.toLowerCase()}` : "";
-  const tabs = [["scores", "Scores"], ["brief", "Interview brief"], ["email", "Email"], ["saw", "What Claude saw"]];
+  const tabs = [["scores", "Scores"], ["brief", "Interview brief"], ["email", "Email"], ["saw", "What Gemini saw"]];
   const unsent = !c.sent || c.sent.test;
   d.hidden = false;
   d.innerHTML = `<div class="d-head">
@@ -1046,7 +1046,7 @@ function renderSettings() {
 function renderSetup(cfg) {
   const missing = [];
   if (!cfg.database) missing.push("<code>DATABASE_URL</code> (your Neon connection string)");
-  if (!cfg.claude) missing.push("<code>ANTHROPIC_API_KEY</code> (your Claude API key)");
+  if (!cfg.ai) missing.push("<code>GEMINI_API_KEY</code> (your Gemini API key)");
   $("#setup").innerHTML = missing.length ? `<div class="setup"><strong>Setup isn't finished.</strong> Add ${missing.join(" and ")} in Vercel → Settings → Environment Variables, then redeploy.</div>` : "";
 }
 function render() {
@@ -1153,7 +1153,7 @@ async function start() {
   const r = await api("/api/session", { method: "POST" });
   $("#gate").hidden = true;
   state.cfg = r.configured;
-  sampleReady = !!r.configured.claude; sampleChecked = true;
+  sampleReady = !!r.configured.ai; sampleChecked = true;
   renderSetup(r.configured); updateIntake(); renderJobs();
   if (r.configured.database) await loadCandidates();
   else { state.loaded = true; render(); }

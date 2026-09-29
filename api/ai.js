@@ -1,10 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { ApiError, FinishReason, GoogleGenAI } from "@google/genai";
 import { authorize } from "../lib/server.js";
 
-const MODEL = "claude-opus-5";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const MAX_PROMPT_CHARS = 60000;
 
-let anthropic = null;
+let genai = null;
 
 // Reads the reply tolerantly: the whole text as JSON, else a fenced block, else the outermost {...}.
 function parseJson(text) {
@@ -19,7 +19,7 @@ function parseJson(text) {
   return undefined;
 }
 
-// Runs one screening prompt (scoring, brief or email) and returns Claude's JSON answer.
+// Runs one screening prompt (scoring, brief or email) on Gemini and returns its JSON answer.
 // The page builds the prompts from anonymised CV text; no names or contact details reach this route.
 export default async function handler(req, res) {
   if (!authorize(req, res)) return;
@@ -28,8 +28,8 @@ export default async function handler(req, res) {
     res.status(405).json({ code: "method_not_allowed", error: "Method not allowed." });
     return;
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ code: "server_config", error: "ANTHROPIC_API_KEY is not set. Add it in Vercel > Settings > Environment Variables." });
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(500).json({ code: "server_config", error: "GEMINI_API_KEY is not set. Add it in Vercel > Settings > Environment Variables." });
     return;
   }
   const prompt = String((req.body || {}).prompt || "");
@@ -42,46 +42,47 @@ export default async function handler(req, res) {
     return;
   }
 
-  anthropic ??= new Anthropic();
+  genai ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   try {
-    const response = await anthropic.beta.messages.create({
+    const response = await genai.models.generateContent({
       model: MODEL,
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [{ role: "user", content: prompt }],
+      contents: prompt,
+      config: { responseMimeType: "application/json", maxOutputTokens: 16000 },
     });
 
-    if (response.stop_reason === "refusal") {
-      res.status(422).json({ code: "refused", error: "Claude declined this request." });
+    const finish = response.candidates && response.candidates[0] && response.candidates[0].finishReason;
+    if ((response.promptFeedback && response.promptFeedback.blockReason) || (finish && finish !== FinishReason.STOP && finish !== FinishReason.MAX_TOKENS)) {
+      res.status(422).json({ code: "refused", error: "Gemini declined this request." });
       return;
     }
-    if (response.stop_reason === "max_tokens") {
-      res.status(502).json({ code: "invalid_json", error: "Claude's answer was cut short." });
+    if (finish === FinishReason.MAX_TOKENS) {
+      res.status(502).json({ code: "invalid_json", error: "Gemini's answer was cut short." });
       return;
     }
-    const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-    const json = parseJson(text);
+    const json = parseJson(response.text || "");
     if (json === undefined) {
-      res.status(502).json({ code: "invalid_json", error: "Claude's reply wasn't valid JSON." });
+      res.status(502).json({ code: "invalid_json", error: "Gemini's reply wasn't valid JSON." });
       return;
     }
-    res.status(200).json({ json, model: response.model });
+    res.status(200).json({ json, model: MODEL });
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) {
-      res.status(429).json({ code: "rate_limited", error: "Claude API rate limit reached. Try again shortly." });
-    } else if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-      res.status(500).json({ code: "server_config", error: "The Claude API key was rejected. Check ANTHROPIC_API_KEY in Vercel." });
-    } else if (err instanceof Anthropic.BadRequestError) {
-      console.error(err);
-      res.status(400).json({ code: "bad_request", error: "Claude rejected the request." });
-    } else if (err instanceof Anthropic.APIError) {
-      console.error(err);
-      res.status(502).json({ code: "upstream_error", error: "The Claude API had a problem. Try again." });
-    } else {
-      console.error(err);
-      res.status(502).json({ code: "upstream_error", error: "Couldn't reach the Claude API. Try again." });
+    if (err instanceof ApiError) {
+      if (err.status === 429) {
+        res.status(429).json({ code: "rate_limited", error: "Gemini's free-tier limit was reached. Wait a minute, or try again tomorrow if the daily limit is used up." });
+      } else if ((err.status === 400 && /api key/i.test(err.message)) || err.status === 401 || err.status === 403) {
+        res.status(500).json({ code: "server_config", error: "Gemini rejected the API key. Check GEMINI_API_KEY in Vercel." });
+      } else if (err.status === 404) {
+        res.status(500).json({ code: "server_config", error: `The Gemini model "${MODEL}" isn't available to this key. Set GEMINI_MODEL in Vercel to a model your key can use.` });
+      } else if (err.status >= 400 && err.status < 500) {
+        console.error(err);
+        res.status(400).json({ code: "bad_request", error: "Gemini rejected the request." });
+      } else {
+        console.error(err);
+        res.status(502).json({ code: "upstream_error", error: "The Gemini API had a problem. Try again." });
+      }
+      return;
     }
+    console.error(err);
+    res.status(502).json({ code: "upstream_error", error: "Couldn't reach the Gemini API. Try again." });
   }
 }
