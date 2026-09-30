@@ -20,6 +20,7 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 | Path | What it is |
 |---|---|
 | `index.html` | The dashboard, served at `/` |
+| `assets/` | Logo and cat mascots used by the dashboard, sized for the web |
 | `api/session.js` | Checks the password and reports which settings are missing |
 | `api/candidates.js` | Lists, saves, updates and deletes candidates in Neon |
 | `api/cv.js` | Downloads a candidate's original CV |
@@ -27,7 +28,12 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 | `api/send.js` | Sends a candidate email through Resend and records it |
 | `lib/server.js` | Shared password check and Neon client |
 | `db/schema.sql` | Database tables: `candidates` and `cv_files` |
+| `design/` | Design reference: `DESIGN.md` spec, `Hiring Desk v2.dc.html` (current) and v1. Not deployed. |
 | `kargo-hiring-desk/` | The original claude.ai Artifact version |
+
+## Design
+
+The interface follows `design/DESIGN.md` (AI Recruiter · Hiring Desk v2): lime hero with the upload area, a three-column board (Advance 75+, Interview 60–74, Pass under 60) and a candidate drawer. Fonts are Bricolage Grotesque, Instrument Sans and JetBrains Mono; colours are the oklch tokens at the top of `index.html`. To preview the reference, serve the repo root and open `design/Hiring Desk v2.dc.html`.
 
 ## Setup on Vercel
 

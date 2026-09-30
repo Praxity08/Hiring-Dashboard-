@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:oklch(0.972 0.01 112);color:oklch(0.2 0.015 125);font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:oklch(0.42 0.12 128);text-underline-offset:3px}
+a:hover{color:oklch(0.28 0.08 128)}
+*{box-sizing:border-box}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+
+  <header style="max-width:1320px;width:100%;margin:0 auto;padding:22px 32px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <img src="assets/logo.jpg" alt="AI recruiter" style="height:44px;width:auto;mix-blend-mode:multiply;display:block">
+    <div style="width:1px;height:28px;background:oklch(0.86 0.015 115)"></div>
+    <div style="font-size:13px;color:oklch(0.48 0.02 120);line-height:1.35;white-space:nowrap">Kargo<br>PM &amp; Senior PM · Rubrics v2</div>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:6px;padding:4px;border-radius:999px;background:oklch(0.94 0.02 118);flex-shrink:0">
+      <sc-for list="{{ rankTabs }}" as="t" hint-placeholder-count="3">
+        <button onClick="{{ t.select }}" style="font:inherit;font-size:13px;font-weight:500;padding:8px 15px;border-radius:999px;border:none;cursor:pointer;white-space:nowrap;background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <button onClick="{{ toggleSettings }}" style="font:inherit;font-size:18px;font-weight:500;width:40px;height:40px;flex-shrink:0;border-radius:50%;border:1px solid oklch(0.86 0.015 115);background:oklch(0.99 0.004 110);color:inherit;cursor:pointer;display:grid;place-items:center" style-hover="background:oklch(0.93 0.06 122)">⚙</button>
+  </header>
+
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="max-width:1320px;width:100%;margin:0 auto;padding:0 32px 8px">
+      <div style="border-radius:20px;background:oklch(0.99 0.004 110);border:1px solid oklch(0.91 0.012 115);padding:20px 24px;display:flex;gap:28px;flex-wrap:wrap;align-items:flex-end">
+        <label style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;max-width:320px">
+          <span style="font-size:12px;font-weight:500;color:oklch(0.48 0.02 120)">Sign emails as</span>
+          <input value="Aanya, Kargo Product" style="font:inherit;font-size:14px;padding:10px 12px;border-radius:12px;border:1px solid oklch(0.86 0.015 115);background:oklch(0.972 0.01 112);color:inherit;outline:none" style-focus="border-color:oklch(0.72 0.18 130);box-shadow:0 0 0 3px oklch(0.9 0.17 125 / 0.45)">
+        </label>
+        <p style="flex:2 1 320px;margin:0;font-size:13px;line-height:1.55;color:oklch(0.45 0.02 120);text-wrap:pretty">With Resend set up, <b style="font-weight:600;color:oklch(0.25 0.02 125)">Send</b> emails the candidate straight from here. Without it, “Open in Gmail” opens a ready draft and “Mark as sent” records it.</p>
+        <button style="font:inherit;font-size:13px;padding:9px 14px;border-radius:999px;border:1px solid oklch(0.86 0.015 115);background:transparent;color:oklch(0.5 0.13 30);cursor:pointer">Sign out on this device</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <section style="max-width:1320px;width:100%;margin:0 auto;padding:12px 32px 0">
+    <div style="position:relative;border-radius:32px;background:oklch(0.93 0.1 122);padding:44px 44px 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:36px;overflow:hidden;isolation:isolate">
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:clamp(40px,5vw,68px);line-height:0.95;letter-spacing:-0.035em;text-wrap:balance">Land on your next great PM.</h1>
+        <p style="margin:0;max-width:440px;font-size:15px;line-height:1.55;color:oklch(0.32 0.04 125);text-wrap:pretty">Every CV is scored against both rubrics — so you’ll spot when a PM applicant is really a Senior PM.</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:oklch(0.36 0.05 125)">Roles they applied for</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ roleChips }}" as="r" hint-placeholder-count="2">
+              <button onClick="{{ r.toggle }}" style="font:inherit;font-size:14px;font-weight:500;padding:10px 16px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;border:1.5px solid oklch(0.2 0.015 125);background:{{ r.bg }};color:{{ r.fg }}">{{ r.mark }} {{ r.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <p style="margin:0;max-width:420px;font-size:12px;line-height:1.55;color:oklch(0.36 0.04 125);text-wrap:pretty">Names, emails, phones and profile links are stripped in your browser before Gemini reads a CV. City stays for the Mumbai gate.</p>
+      </div>
+
+      <div style="position:relative;display:flex;flex-direction:column;gap:12px;justify-content:flex-end;padding-top:90px">
+        <img src="assets/cat-fly.png" alt="" style="position:absolute;right:-6px;top:-40px;width:180px;transform:rotate(-8deg);pointer-events:none;z-index:1">
+        <div onClick="{{ addFile }}" style="border-radius:24px;background:oklch(0.985 0.012 115);padding:30px 26px 24px;display:flex;flex-direction:column;gap:14px;cursor:pointer;border:1.5px dashed oklch(0.55 0.08 125);transition:border-color .2s" style-hover="border-color:oklch(0.2 0.015 125)">
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:500;letter-spacing:-0.02em;max-width:70%">Drop CVs here, or click to choose</div>
+          <div style="font-size:13px;color:oklch(0.48 0.02 120)">PDF, Word (.docx) or text — as many as you like.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ files }}" as="f" hint-placeholder-count="2">
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px;border-radius:999px;background:oklch(0.94 0.04 120)"><b style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500">{{ f.ext }}</b>{{ f.name }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <button onClick="{{ screen }}" style="font:inherit;font-size:16px;font-weight:600;padding:18px 22px;border-radius:20px;border:none;background:oklch(0.2 0.015 125);color:oklch(0.95 0.1 122);cursor:pointer;display:flex;align-items:center;justify-content:space-between" style-hover="background:oklch(0.28 0.03 125)">
+          <span>{{ screenLabel }}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:400;color:oklch(0.8 0.12 122)">→ both rubrics</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <main style="position:relative;max-width:1320px;width:100%;margin:0 auto;padding:48px 32px 56px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:40px;letter-spacing:-0.03em">The board</h2>
+      <span style="font-size:14px;color:oklch(0.48 0.02 120)">{{ countLabel }}</span>
+      <img src="assets/cat-laptop.png" alt="" style="margin-left:auto;width:92px;height:auto;align-self:flex-end;margin-bottom:-18px">
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px;align-items:start">
+      <sc-for list="{{ columns }}" as="col" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:26px;background:{{ col.bg }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 8px 10px">
+            <span style="width:12px;height:12px;border-radius:50%;background:{{ col.dot }}"></span>
+            <span style="font-family:'Bricolage Grotesque',sans-serif;font-size:20px;font-weight:500;letter-spacing:-0.01em">{{ col.title }}</span>
+            <span style="font-size:12px;color:oklch(0.48 0.02 120)">{{ col.range }}</span>
+            <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:13px">{{ col.count }}</span>
+          </div>
+          <sc-for list="{{ col.items }}" as="c" hint-placeholder-count="2">
+            <div onClick="{{ c.open }}" style="border-radius:18px;background:oklch(0.993 0.003 110);padding:16px 16px 14px;display:flex;flex-direction:column;gap:14px;cursor:pointer;border:1.5px solid {{ c.border }};transition:transform .15s" style-hover="transform:translateY(-2px)">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="font-size:16px;font-weight:600">{{ c.name }}</div>
+                  <div style="font-size:12px;color:oklch(0.5 0.02 120)">{{ c.city }} · <span style="color:{{ c.gateColor }}">{{ c.gate }}</span></div>
+                </div>
+                <sc-if value="{{ c.borderline }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:11px;font-weight:500;padding:4px 8px;border-radius:999px;border:1px dashed oklch(0.45 0.05 120);color:oklch(0.4 0.03 120)">borderline</span>
+                </sc-if>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div style="border-radius:12px;padding:10px 12px;background:{{ c.pmBg }};display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:11px;font-weight:500;color:oklch(0.4 0.03 120)">PM</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500">{{ c.pm }}</span>
+                </div>
+                <div style="border-radius:12px;padding:10px 12px;background:{{ c.spmBg }};display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:11px;font-weight:500;color:oklch(0.4 0.03 120)">Senior PM</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500">{{ c.spm }}</span>
+                </div>
+              </div>
+              <div style="font-size:12px;color:oklch(0.45 0.02 120)">{{ c.hint }}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ col.showCat }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 6px">
+              <div style="width:{{ col.catW }};height:{{ col.catH }};overflow:hidden"><img src="{{ col.cat }}" alt="" style="width:100%;height:auto;display:block;margin-top:{{ col.catMt }}"></div>
+              <span style="font-size:12px;color:oklch(0.5 0.02 120)">{{ col.caption }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ col.empty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:10px 22px 22px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:13px;color:oklch(0.5 0.02 120)"><img src="assets/cat-headphones.png" alt="" style="width:120px;height:auto">Nobody here yet.</div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+
+  <footer style="max-width:1320px;width:100%;margin:0 auto;padding:0 32px 40px">
+    <div style="border-top:1.5px solid oklch(0.2 0.015 125);padding-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:24px">
+      <div style="display:flex;flex-direction:column;gap:10px"><img src="assets/cat-glasses.png" alt="" style="width:96px;height:auto;margin:-12px 0 0 -10px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:500;letter-spacing:-0.02em;line-height:1">How scoring works</div></div>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:oklch(0.42 0.02 120);text-wrap:pretty">Gemini scores each criterion 1–5 from evidence in the anonymised CV. This page does the maths: Σ weight × score ÷ 5, out of 100.</p>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:oklch(0.42 0.02 120);text-wrap:pretty"><b style="color:oklch(0.2 0.015 125)">75+</b> advance · <b style="color:oklch(0.2 0.015 125)">60–74</b> interview, probe the lowest criterion · <b style="color:oklch(0.2 0.015 125)">under 60</b> pass. Within 2 points of a line = borderline.</p>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:oklch(0.42 0.02 120);text-wrap:pretty">Gate (not scored): Mumbai-based or willing to relocate. If a CV doesn’t say, the invite asks.</p>
+    </div>
+  </footer>
+
+  <sc-if value="{{ screening }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:24px;bottom:24px;z-index:30;display:flex;align-items:center;gap:14px;padding:10px 22px 10px 12px;border-radius:24px;background:oklch(0.2 0.015 125);color:oklch(0.95 0.1 122);box-shadow:0 20px 50px -20px oklch(0.2 0.03 125 / 0.6)">
+      <div style="width:64px;height:64px;border-radius:18px;background:oklch(0.93 0.1 122);display:grid;place-items:center"><img src="assets/cat-loading.png" alt="" style="width:54px;height:auto"></div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:15px;font-weight:600">Sniffing through CVs…</span>
+        <span style="font-size:12px;color:oklch(0.8 0.08 122)">Scoring against both rubrics</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ close }}" style="position:fixed;inset:0;background:oklch(0.2 0.015 125 / 0.25);backdrop-filter:blur(2px);z-index:20"></div>
+    <aside style="position:fixed;top:12px;right:12px;bottom:12px;width:min(460px,calc(100% - 24px));z-index:21;border-radius:28px;background:oklch(0.985 0.008 112);box-shadow:0 30px 80px -30px oklch(0.2 0.03 125 / 0.5);display:flex;flex-direction:column;overflow:auto">
+      <div style="padding:26px 26px 20px;background:{{ sel.headBg }};display:flex;flex-direction:column;gap:16px;position:relative">
+        <button onClick="{{ close }}" style="position:absolute;top:18px;right:18px;width:36px;height:36px;border-radius:50%;border:none;background:oklch(0.99 0.004 110);cursor:pointer;font:inherit;font-size:16px">✕</button>
+        <span style="align-self:flex-start;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:oklch(0.2 0.015 125);color:oklch(0.95 0.1 122)">{{ sel.verdict }}</span>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:36px;font-weight:500;letter-spacing:-0.03em;line-height:1">{{ sel.name }}</div>
+          <div style="font-size:13px;color:oklch(0.36 0.03 120)">{{ sel.city }} · {{ sel.gate }} · applied {{ sel.applied }}</div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:56px;font-weight:500;letter-spacing:-0.04em;line-height:1">{{ sel.lead }}</span>
+          <span style="font-size:13px;color:oklch(0.36 0.03 120)">/ 100 on {{ sel.fit }}</span>
+        </div>
+      </div>
+      <div style="padding:22px 26px;display:flex;flex-direction:column;gap:14px;flex:1">
+        <span style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:oklch(0.45 0.02 120)">{{ sel.fit }} rubric</span>
+        <sc-for list="{{ sel.criteria }}" as="k" hint-placeholder-count="6">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span>{{ k.name }} <span style="color:oklch(0.55 0.02 120);font-size:12px">× {{ k.weight }}</span></span><span style="font-family:'JetBrains Mono',monospace;font-size:13px">{{ k.score }}/5</span></div>
+            <div style="display:flex;gap:4px">
+              <sc-for list="{{ k.pips }}" as="p" hint-placeholder-count="5">
+                <span style="flex:1;height:8px;border-radius:4px;background:{{ p }}"></span>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="margin-top:6px;padding:14px 16px;border-radius:16px;background:oklch(0.94 0.03 118);font-size:13px;line-height:1.5">{{ sel.note }}</div>
+      </div>
+      <div style="padding:0 26px 26px;display:flex;flex-direction:column;gap:8px">
+        <button style="font:inherit;font-size:15px;font-weight:600;padding:15px;border-radius:16px;border:none;background:oklch(0.9 0.17 125);color:oklch(0.2 0.015 125);cursor:pointer" style-hover="background:oklch(0.86 0.18 125)">{{ sel.cta }}</button>
+        <div style="display:flex;gap:8px">
+          <button style="flex:1;font:inherit;font-size:14px;padding:12px;border-radius:14px;border:1px solid oklch(0.86 0.015 115);background:oklch(0.99 0.004 110);color:inherit;cursor:pointer">Open in Gmail</button>
+          <button style="flex:1;font:inherit;font-size:14px;padding:12px;border-radius:14px;border:1px solid oklch(0.86 0.015 115);background:transparent;color:inherit;cursor:pointer">Mark as sent</button>
+        </div>
+      </div>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { rankBy: 'best', selId: null, roles: { pm: true, spm: true }, settingsOpen: false,
+    files: [{ name: 'riya_menon_cv.pdf', ext: 'PDF' }, { name: 'arjun-k-resume.docx', ext: 'DOCX' }] };
+
+  static PM = [['Product discovery', 25], ['Execution & delivery', 20], ['Data fluency', 20], ['Stakeholder mgmt', 15], ['Domain (logistics)', 10], ['Communication', 10]];
+  static SPM = [['Product strategy', 25], ['Team leadership', 20], ['Execution at scale', 20], ['Data fluency', 15], ['Stakeholder mgmt', 10], ['Domain (logistics)', 10]];
+  static DATA = [
+    { id: 'c1', name: 'Riya Menon', city: 'Mumbai', gate: 'Gate met', pm: [4,4,4,4,4,4], spm: [4,4,4,4,3,4], applied: 'spm' },
+    { id: 'c2', name: 'Arjun Kulkarni', city: 'Pune', gate: 'Willing to relocate', pm: [4,4,4,3,4,3], spm: [3,3,4,4,3,4], applied: 'pm' },
+    { id: 'c3', name: 'Sana Qureshi', city: 'Bengaluru', gate: 'Confirm relocation', pm: [4,3,4,4,3,4], spm: [3,4,4,3,3,3], applied: 'pm' },
+    { id: 'c4', name: 'Dev Malhotra', city: 'Mumbai', gate: 'Gate met', pm: [3,4,3,4,3,3], spm: [3,3,3,3,3,4], applied: 'spm' },
+    { id: 'c5', name: 'Nikhil Rao', city: 'Hyderabad', gate: 'Confirm relocation', pm: [3,3,3,3,2,3], spm: [3,2,3,3,3,3], applied: 'pm' },
+    { id: 'c6', name: 'Meher Shah', city: 'Mumbai', gate: 'Gate met', pm: [2,3,2,3,3,3], spm: [2,2,3,3,3,3], applied: 'pm' },
+  ];
+
+  score(s, r) { return Math.round(r.reduce((a, [, w], i) => a + w * s[i] / 5, 0)); }
+  band(n) { return n >= 75 ? 'adv' : n >= 60 ? 'int' : 'pass'; }
+  tint(n) { const b = this.band(n); return b === 'adv' ? 'oklch(0.9 0.15 125)' : b === 'int' ? 'oklch(0.94 0.07 95)' : 'oklch(0.9 0.07 25)'; }
+
+  renderVals() {
+    const C = this.constructor, st = this.state;
+    const rows = C.DATA.map(d => {
+      const pm = this.score(d.pm, C.PM), spm = this.score(d.spm, C.SPM);
+      const useSpm = st.rankBy === 'spm' || (st.rankBy === 'best' && spm >= pm);
+      const lead = useSpm ? spm : pm;
+      const rubric = useSpm ? C.SPM : C.PM, scores = useSpm ? d.spm : d.pm;
+      const low = rubric[scores.indexOf(Math.min(...scores))][0];
+      const fit = useSpm ? 'Senior PM' : 'PM';
+      const b = this.band(lead);
+      const borderline = Math.abs(lead - 75) <= 2 || Math.abs(lead - 60) <= 2;
+      const switched = d.applied !== (useSpm ? 'spm' : 'pm');
+      return { ...d, pmS: pm, spmS: spm, lead, fit, b, borderline, rubric, scores, low, switched };
+    }).sort((a, b) => b.lead - a.lead);
+
+    const card = r => ({
+      name: r.name, city: r.city, gate: r.gate, pm: r.pmS, spm: r.spmS, borderline: r.borderline,
+      gateColor: r.gate === 'Confirm relocation' ? 'oklch(0.52 0.13 65)' : 'oklch(0.5 0.02 120)',
+      pmBg: this.tint(r.pmS), spmBg: this.tint(r.spmS),
+      border: st.selId === r.id ? 'oklch(0.2 0.015 125)' : 'transparent',
+      hint: r.switched ? `Stronger ${r.fit} fit than applied role` : r.b === 'int' ? `Probe: ${r.low}` : `Best fit · ${r.fit}`,
+      open: () => this.setState({ selId: r.id }),
+    });
+    const colDefs = [['adv', 'Advance', '75+', 'oklch(0.72 0.19 130)', 'oklch(0.95 0.05 122)'], ['int', 'Interview', '60–74', 'oklch(0.8 0.14 90)', 'oklch(0.955 0.03 100)'], ['pass', 'Pass', '<60', 'oklch(0.66 0.17 25)', 'oklch(0.955 0.03 25)']];
+    const columns = colDefs.map(([k, title, range, dot, bg]) => {
+      const items = rows.filter(r => r.b === k).map(card);
+      const cat = { adv: ['assets/cat-on-laptop.png', '120px', '118px', '-4px', 'Keyboard’s warm — send the invite.'], int: ['assets/cat-hanging.png', '120px', '112px', '-6px', 'Hanging in there — probe the gaps.'], pass: ['assets/cat-tangled.png', '220px', '95px', '-120px', 'Not this time — send a kind no.'] }[k];
+      return { title, range, dot, bg, items, count: items.length, empty: items.length === 0, showCat: items.length > 0, cat: cat[0], catW: cat[1], catH: cat[2], catMt: cat[3], caption: cat[4] };
+    });
+
+    const s = rows.find(r => r.id === st.selId);
+    const sel = s ? {
+      name: s.name, city: s.city, gate: s.gate, applied: s.applied === 'pm' ? 'PM' : 'Senior PM',
+      lead: s.lead, fit: s.fit, headBg: this.tint(s.lead),
+      verdict: (s.b === 'adv' ? 'Advance' : s.b === 'int' ? 'Interview' : 'Pass') + (s.borderline ? ' · borderline' : ''),
+      criteria: s.rubric.map(([n, w], j) => ({ name: n, weight: w, score: s.scores[j],
+        pips: [1,2,3,4,5].map(p => p <= s.scores[j] ? 'oklch(0.2 0.015 125)' : 'oklch(0.9 0.012 115)') })),
+      note: s.b === 'int' ? `Interview and probe the lowest criterion: ${s.low}.` : s.switched ? `Applied for ${s.applied === 'pm' ? 'PM' : 'Senior PM'}, but scores higher as ${s.fit}.` : `Lowest criterion: ${s.low}.`,
+      cta: s.b === 'pass' ? 'Send decline' : 'Send invite',
+    } : {};
+
+    return {
+      columns, sel, hasSel: !!s, close: () => this.setState({ selId: null }),
+      countLabel: `${rows.length} candidates · ranked by ${st.rankBy === 'best' ? 'best fit' : st.rankBy === 'pm' ? 'PM' : 'Senior PM'}`,
+      settingsOpen: st.settingsOpen, toggleSettings: () => this.setState(x => ({ settingsOpen: !x.settingsOpen })),
+      files: st.files,
+      addFile: () => this.setState(x => ({ files: [...x.files, { name: `candidate_${x.files.length + 1}.pdf`, ext: 'PDF' }] })),
+      screenLabel: `Screen ${st.files.length} CV${st.files.length === 1 ? '' : 's'}`,
+      screening: !!st.screening,
+      screen: () => { if (st.screening) return; this.setState({ screening: true }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ screening: false, files: [] }), 2200); },
+      roleChips: [['pm', 'Product Manager'], ['spm', 'Senior PM']].map(([k, label]) => {
+        const on = st.roles[k];
+        return { label, mark: on ? '✓' : '+', bg: on ? 'oklch(0.2 0.015 125)' : 'transparent', fg: on ? 'oklch(0.95 0.1 122)' : 'oklch(0.2 0.015 125)',
+          toggle: () => this.setState(x => ({ roles: { ...x.roles, [k]: !x.roles[k] } })) };
+      }),
+      rankTabs: [['best', 'Best fit'], ['pm', 'PM'], ['spm', 'Senior PM']].map(([k, label]) => ({
+        label, bg: st.rankBy === k ? 'oklch(0.2 0.015 125)' : 'transparent', fg: st.rankBy === k ? 'oklch(0.95 0.1 122)' : 'oklch(0.3 0.02 125)',
+        select: () => this.setState({ rankBy: k }) })),
+    };
+  }
+}
+</script>
+</body>
+</html>
