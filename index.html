@@ -42,6 +42,8 @@
   --danger:oklch(0.50 0.13 30);
   --good:oklch(0.42 0.12 128);
   --focus:0 0 0 3px oklch(0.9 0.17 125 / .45);
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
   --display:"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --sans:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -154,9 +156,9 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 .job .st{color:var(--ink-muted)}
 .job.error .st{color:var(--danger)} .job.done .st{color:var(--good)}
 .job .acts{display:flex;gap:6px}
-.ind{width:10px;height:10px;border-radius:50%;background:var(--line)}
-.ind.working{background:var(--int-dot);animation:pulse 1s ease-in-out infinite alternate}
-.ind.done{background:var(--adv-dot)} .ind.error{background:var(--pass-dot)}
+.jdot{width:10px;height:10px;border-radius:50%;background:var(--line);transition:background-color .3s}
+.jdot.working{background:var(--int-dot);animation:pulse 1s ease-in-out infinite alternate}
+.jdot.done{background:var(--adv-dot)} .jdot.error{background:var(--pass-dot)}
 @keyframes pulse{to{opacity:.35}}
 
 /* board */
@@ -272,7 +274,54 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 .form textarea{min-height:260px;line-height:1.6;resize:vertical}
 .form .acts{display:flex;flex-wrap:wrap;gap:8px}
 .saw{margin:0;padding:14px;border-radius:16px;background:var(--note);font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:480px;overflow:auto}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ---------- Motion ---------- */
+.btn-ink,.btn-lime,.btn-soft,.btn-plain,.btn-ghost,.role-chip,.screen-btn,.gear,.signout,.danger-link,.dr-close,
+.pillbar button,.seg button,.dr-tabs button,.file-chip button{transition:background-color .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease),opacity .2s var(--ease),transform .15s var(--ease),box-shadow .2s var(--ease)}
+:is(.btn-ink,.btn-lime,.btn-soft,.btn-plain,.btn-ghost,.role-chip,.screen-btn,.gear,.signout,.dr-close,.pillbar button,.seg button,.dr-tabs button):active:not(:disabled){transform:scale(.96)}
+.card{transition:transform .2s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.card:hover{box-shadow:0 10px 24px -18px oklch(0.2 0.03 125 / .45)}
+.card:active{transform:scale(.985)}
+.gear{transition:background-color .2s var(--ease),transform .35s var(--ease-out)}
+.gear[aria-expanded="true"]{transform:rotate(60deg)}
+.tile,.dr-head{transition:background-color .3s var(--ease)}
+
+/* sliding highlight behind the active pill (Rank by, drawer tabs, rubric switch) */
+.has-ind{position:relative}
+.has-ind>.ind{position:absolute;left:0;top:0;border-radius:999px;background:var(--ink);pointer-events:none;z-index:0;
+  transition:transform .4s var(--ease-out),width .4s var(--ease-out),height .4s var(--ease-out),opacity .2s}
+.has-ind>.ind.no-anim{transition:none}
+.has-ind>button{position:relative;z-index:1}
+.has-ind>button[aria-pressed="true"],.has-ind>button[aria-selected="true"]{background:transparent!important;border-color:transparent!important}
+
+/* things that appear */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pipIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.setup>div,.confirm-bar,.msg.flash,#sample-unavail,#screen-hint:not(:empty){animation:fadeUp .3s var(--ease-out) both}
+.enter .pips span.on{transform-origin:left center;animation:pipIn .5s var(--ease-out) both;animation-delay:calc(var(--i,0) * 45ms)}
+
+/* settings: expands open */
+.collapse{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .38s var(--ease-out),opacity .28s var(--ease)}
+.collapse.open{grid-template-rows:1fr;opacity:1}
+.collapse>.collapse-inner{overflow:hidden;min-height:0}
+
+/* drawer + backdrop: slide and fade */
+.backdrop{opacity:0;transition:opacity .3s var(--ease)}
+.backdrop.open{opacity:1}
+.drawer{transform:translateX(calc(100% + 24px));transition:transform .45s var(--ease-out)}
+.drawer.open{transform:none}
+
+/* screening toast: rises in */
+.toast{visibility:hidden;opacity:0;transform:translateY(18px) scale(.98);pointer-events:none;
+  transition:opacity .3s var(--ease),transform .4s var(--ease-out),visibility 0s linear .4s}
+.toast.show{visibility:visible;opacity:1;transform:none;pointer-events:auto;transition:opacity .3s var(--ease),transform .4s var(--ease-out),visibility 0s}
+.toast .tile-cat img{animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-3px) rotate(-4deg)}}
+
+/* sign-in screen fades away */
+.gate{transition:opacity .35s var(--ease)}
+.gate.leaving{opacity:0;pointer-events:none}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -299,10 +348,14 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 </header>
 
 <div class="wrap">
-  <div class="settings" id="settings" hidden>
-    <label class="field" for="set-sender"><span>Sign emails as</span><input id="set-sender" type="text" autocomplete="name"></label>
-    <p>With Resend set up, <b>Send</b> emails the candidate straight from here. Without it, “Open in Gmail” opens a ready draft and “Mark as sent” records it.</p>
-    <button class="signout" id="sign-out" type="button">Sign out on this device</button>
+  <div class="collapse" id="settings-wrap" inert>
+    <div class="collapse-inner">
+      <div class="settings" id="settings">
+        <label class="field" for="set-sender"><span>Sign emails as</span><input id="set-sender" type="text" autocomplete="name"></label>
+        <p>With Resend set up, <b>Send</b> emails the candidate straight from here. Without it, “Open in Gmail” opens a ready draft and “Mark as sent” records it.</p>
+        <button class="signout" id="sign-out" type="button">Sign out on this device</button>
+      </div>
+    </div>
   </div>
   <div id="setup"></div>
 </div>
@@ -352,7 +405,7 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
   </div>
 </footer>
 
-<div class="toast" id="toast" role="status" hidden>
+<div class="toast" id="toast" role="status" aria-hidden="true">
   <div class="tile-cat"><img src="assets/cat-loading.png" alt=""></div>
   <div><b>Sniffing through CVs…</b><span id="toast-sub">Scoring against both rubrics</span></div>
 </div>
@@ -933,6 +986,40 @@ const COLUMNS = [
   { key: "pass", title: "Pass", range: "<60", dot: "var(--pass-dot)", bg: "var(--col-pass)", cat: "assets/cat-tangled.png", crop: true, caption: "Not this time — send a kind no." },
 ];
 
+/* ---------- Motion helpers ---------- */
+const EASE_OUT = "cubic-bezier(.16,1,.3,1)";
+const canAnimate = (el) => el && typeof el.animate === "function" && !reduced();
+function fadeUp(el, delay = 0, distance = 8) {
+  if (!canAnimate(el)) return;
+  el.animate([{ opacity: 0, transform: `translateY(${distance}px)` }, { opacity: 1, transform: "none" }], { duration: 320, delay, easing: EASE_OUT, fill: "backwards" });
+}
+function fadeOutRemove(el) {
+  if (!canAnimate(el)) { el.remove(); return; }
+  el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-4px)" }], { duration: 200, easing: "ease-in" }).onfinish = () => el.remove();
+}
+// A pill that slides to whichever button in the group is active.
+function moveIndicator(group, animate = true) {
+  if (!group) return;
+  let ind = group.querySelector(":scope > .ind");
+  if (!ind) {
+    ind = document.createElement("span");
+    ind.className = "ind no-anim"; ind.setAttribute("aria-hidden", "true");
+    group.prepend(ind); group.classList.add("has-ind");
+    animate = false;
+  }
+  const active = group.querySelector(':scope > button[aria-pressed="true"], :scope > button[aria-selected="true"]');
+  if (!active) { ind.style.opacity = "0"; return; }
+  if (!animate || reduced()) ind.classList.add("no-anim");
+  ind.style.opacity = "1";
+  ind.style.width = active.offsetWidth + "px";
+  ind.style.height = active.offsetHeight + "px";
+  ind.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+  if (ind.classList.contains("no-anim")) { void ind.offsetWidth; requestAnimationFrame(() => ind.classList.remove("no-anim")); }
+}
+function refreshIndicators() { document.querySelectorAll(".has-ind").forEach((g) => moveIndicator(g, false)); }
+addEventListener("resize", refreshIndicators);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(refreshIndicators);
+
 // The role a candidate is judged on under the current "Rank by" choice, and the column it lands in.
 function lensView(c) {
   const o = overview(c);
@@ -947,12 +1034,10 @@ function filtered() {
 }
 const appliedFor = (c) => (c.applied && c.applied.length ? c.applied : ROLES);
 function cardHint(c, v) {
-  let h;
-  if (v.o.gate === "fail") h = "Fails the Mumbai gate";
-  else if (!appliedFor(c).includes(v.role)) h = `Stronger ${ROLE_LABEL[v.role]} fit than applied role`;
-  else if (v.b === "interview") h = `Probe: ${lowest(c, v.role).k.name}`;
-  else h = `Best fit · ${ROLE_LABEL[v.role]}`;
-  return h;
+  if (v.o.gate === "fail") return "Fails the Mumbai gate";
+  if (!appliedFor(c).includes(v.role)) return `Stronger ${ROLE_LABEL[v.role]} fit than applied role`;
+  if (v.b === "interview") return `Probe: ${lowest(c, v.role).k.name}`;
+  return `Best fit · ${ROLE_LABEL[v.role]}`;
 }
 const tile = (label, n) => `<span class="tile" style="background:${TINT[band(n)]}"><span class="tile-label">${label}</span><span class="tile-n">${n}</span></span>`;
 function card({ c, v }) {
@@ -970,56 +1055,128 @@ function card({ c, v }) {
 }
 function mascot(col) {
   const img = col.crop ? `<span class="crop"><img src="${col.cat}" alt=""></span>` : `<img src="${col.cat}" alt="">`;
-  return `<div class="col-cat">${img}<span>${col.caption}</span></div>`;
+  return `<div class="col-cat" data-flip="cat-${col.key}">${img}<span>${col.caption}</span></div>`;
 }
+let boardShown = false;
+// Re-renders the board, then glides every card (and column) from where it was to where it is now.
 function renderBoard() {
   const board = $("#board");
-  if (!state.loaded) { board.innerHTML = `<p class="board-note">Loading candidates…</p>`; $("#count").textContent = ""; return; }
+  if (!state.loaded) { board.innerHTML = `<p class="board-note">Loading candidates…</p>`; $("#count").textContent = ""; boardShown = false; return; }
+  const before = new Map();
+  if (boardShown && !reduced()) {
+    board.querySelectorAll("[data-id], [data-flip]").forEach((el) => before.set(el.dataset.id || el.dataset.flip, el.getBoundingClientRect()));
+  }
+  const colHeights = [...board.querySelectorAll(".col")].map((el) => el.getBoundingClientRect().height);
   const rows = filtered().all;
-  $("#count").textContent = `${rows.length} candidate${rows.length === 1 ? "" : "s"} · ranked by ${state.lens === "best" ? "best fit" : ROLE_LABEL[state.lens]}`;
+  const countText = `${rows.length} candidate${rows.length === 1 ? "" : "s"} · ranked by ${state.lens === "best" ? "best fit" : ROLE_LABEL[state.lens]}`;
+  const countEl = $("#count");
+  if (countEl.textContent !== countText) { countEl.textContent = countText; if (boardShown) fadeUp(countEl, 0, 4); }
   board.innerHTML = COLUMNS.map((col) => {
     const items = rows.filter((r) => r.v.b === col.key);
     return `<section class="col" style="--col-bg:${col.bg}" aria-label="${col.title}">
       <header class="col-head"><span class="dot" style="background:${col.dot}"></span><h3>${col.title}</h3><span class="range">${col.range}</span><span class="n">${items.length}</span></header>
       ${items.map(card).join("")}
-      ${items.length ? mascot(col) : `<div class="col-empty"><img src="assets/cat-headphones.png" alt="">Nobody here yet.</div>`}
+      ${items.length ? mascot(col) : `<div class="col-empty" data-flip="empty-${col.key}"><img src="assets/cat-headphones.png" alt="">Nobody here yet.</div>`}
     </section>`;
   }).join("");
+  if (reduced()) { boardShown = true; return; }
+  if (!boardShown) {
+    // First paint: columns and cards rise in, one after another.
+    board.querySelectorAll(".col").forEach((col, i) => {
+      fadeUp(col, i * 70, 12);
+      col.querySelectorAll(".card, .col-cat, .col-empty").forEach((el, j) => fadeUp(el, 120 + i * 70 + j * 45));
+    });
+    boardShown = true;
+    return;
+  }
+  board.querySelectorAll(".col").forEach((el, i) => {
+    const h0 = colHeights[i], h1 = el.getBoundingClientRect().height;
+    if (h0 && Math.abs(h0 - h1) > 1) el.animate([{ height: h0 + "px" }, { height: h1 + "px" }], { duration: 450, easing: EASE_OUT });
+  });
+  board.querySelectorAll("[data-id], [data-flip]").forEach((el) => {
+    const r0 = before.get(el.dataset.id || el.dataset.flip), r1 = el.getBoundingClientRect();
+    if (!r0) { el.animate([{ opacity: 0, transform: "scale(.96)" }, { opacity: 1, transform: "none" }], { duration: 320, easing: EASE_OUT }); return; }
+    const dx = r0.left - r1.left, dy = r0.top - r1.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 520, easing: EASE_OUT });
+  });
 }
-function renderControls() {
+
+/* ---------- Header controls: built once, then updated in place so they can animate ---------- */
+function buildControls() {
   $("#lens").innerHTML = [["best", "Best fit"], ["PM", "PM"], ["SPM", "Senior PM"]]
-    .map(([k, l]) => `<button data-lens="${k}" aria-pressed="${state.lens === k}">${l}</button>`).join("");
+    .map(([k, l]) => `<button data-lens="${k}" aria-pressed="false">${l}</button>`).join("");
   $("#roles").innerHTML = [["PM", "Product Manager"], ["SPM", "Senior PM"]]
-    .map(([k, l]) => `<button class="role-chip" data-role="${k}" aria-pressed="${!!state.roles[k]}">${state.roles[k] ? "✓" : "+"} ${l}</button>`).join("");
+    .map(([k, l]) => `<button class="role-chip" data-role="${k}" aria-pressed="false"><span class="mark" aria-hidden="true"></span> ${l}</button>`).join("");
 }
+function renderControls(animate = true) {
+  $("#lens").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lens === state.lens)));
+  moveIndicator($("#lens"), animate);
+  $("#roles").querySelectorAll("button").forEach((b) => {
+    const on = !!state.roles[b.dataset.role];
+    b.setAttribute("aria-pressed", String(on));
+    const mark = b.querySelector(".mark");
+    if (mark.textContent !== (on ? "✓" : "+")) {
+      mark.textContent = on ? "✓" : "+";
+      if (animate && canAnimate(mark)) mark.animate([{ transform: "scale(.4) rotate(-90deg)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 260, easing: EASE_OUT });
+    }
+  });
+}
+
+/* ---------- Upload area, progress rows, toast ---------- */
+let jobKey = 0;
 function renderJobs() {
   const q = $("#queue");
-  q.hidden = !state.jobs.length;
-  q.innerHTML = state.jobs.map((j, i) => `<li class="job ${j.state}">
-    <span class="ind ${j.state}" aria-hidden="true"></span>
-    <span style="min-width:0"><span class="f">${esc(j.file.name)}</span> <span class="st">· ${esc(j.state === "queued" ? "Waiting" : j.stage)}</span></span>
-    <span class="acts">${j.state === "error" && sampleReady ? `<button class="btn-plain sm" data-retry="${i}">${j.scored ? "Try the brief again" : "Try again"}</button>` : ""}${j.state === "done" || j.state === "error" ? `<button class="btn-ghost sm" data-dismiss="${i}">Dismiss</button>` : ""}</span>
-  </li>`).join("");
+  const keep = new Set();
+  state.jobs.forEach((j, i) => {
+    j.key ??= ++jobKey;
+    keep.add(String(j.key));
+    let li = q.querySelector(`li[data-key="${j.key}"]`);
+    const isNew = !li;
+    if (isNew) { li = document.createElement("li"); li.dataset.key = j.key; q.appendChild(li); }
+    li.className = `job ${j.state}`;
+    const html = `<span class="jdot ${j.state}" aria-hidden="true"></span>
+      <span style="min-width:0"><span class="f">${esc(j.file.name)}</span> <span class="st">· ${esc(j.state === "queued" ? "Waiting" : j.stage)}</span></span>
+      <span class="acts">${j.state === "error" && sampleReady ? `<button class="btn-plain sm" data-retry="${i}">${j.scored ? "Try the brief again" : "Try again"}</button>` : ""}${j.state === "done" || j.state === "error" ? `<button class="btn-ghost sm" data-dismiss="${i}">Dismiss</button>` : ""}</span>`;
+    if (li._html !== html) {
+      const stageChanged = li._html && li._stage !== j.stage;
+      li.innerHTML = html; li._html = html; li._stage = j.stage;
+      if (stageChanged) fadeUp(li.querySelector(".st"), 0, 3);
+    }
+    if (isNew) fadeUp(li, i * 40);
+  });
+  q.querySelectorAll("li[data-key]").forEach((li) => { if (!keep.has(li.dataset.key)) fadeOutRemove(li); });
+  q.hidden = !state.jobs.length && !q.querySelector("li");
   const pending = state.jobs.filter((j) => j.state === "working" || j.state === "queued").length;
   const done = state.jobs.filter((j) => j.state === "done").length;
-  $("#toast").hidden = !pending;
+  const toast = $("#toast");
+  toast.classList.toggle("show", pending > 0);
+  toast.setAttribute("aria-hidden", String(!pending));
   if (pending) $("#toast-sub").textContent = `Scoring against both rubrics · ${done} of ${state.jobs.length} done`;
 }
 function updateIntake() {
   const n = state.files.length;
-  $("#picked").innerHTML = state.files.map((f, i) => {
+  const picked = $("#picked");
+  const had = new Set([...picked.children].map((el) => el.dataset.key));
+  picked.innerHTML = state.files.map((f, i) => {
     const ext = (f.name.split(".").pop() || "").toUpperCase().slice(0, 4);
-    return `<span class="file-chip"><b>${esc(ext)}</b><span>${esc(f.name)}</span><button type="button" data-unpick="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`;
+    return `<span class="file-chip" data-key="${esc(f.name + f.size)}"><b>${esc(ext)}</b><span>${esc(f.name)}</span><button type="button" data-unpick="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`;
   }).join("");
+  let k = 0;
+  [...picked.children].forEach((el) => { if (!had.has(el.dataset.key)) fadeUp(el, 40 * k++, 4); });
   const roles = selectedRoles();
-  $("#screen").disabled = !(n && roles.length && sampleReady);
-  $("#screen-label").textContent = `Screen ${n || ""} CV${n === 1 ? "" : "s"}`.replace("  ", " ");
+  const btn = $("#screen");
+  const wasDisabled = btn.disabled;
+  btn.disabled = !(n && roles.length && sampleReady);
+  $("#screen-label").textContent = n ? `Screen ${n} CV${n === 1 ? "" : "s"}` : "Screen CVs";
+  if (wasDisabled && !btn.disabled && canAnimate(btn)) btn.animate([{ transform: "scale(.98)" }, { transform: "scale(1.015)" }, { transform: "none" }], { duration: 380, easing: EASE_OUT });
   $("#screen-hint").textContent = !roles.length ? "Pick at least one role." : "";
   $("#sample-unavail").hidden = sampleReady || !sampleChecked;
 }
 function renderSettings() {
   $("#set-sender").value = settings.sender;
-  $("#settings").hidden = !state.settingsOpen;
+  const wrap = $("#settings-wrap");
+  wrap.classList.toggle("open", !!state.settingsOpen);
+  if (state.settingsOpen) wrap.removeAttribute("inert"); else wrap.setAttribute("inert", "");
   $("#gear").setAttribute("aria-expanded", String(!!state.settingsOpen));
 }
 function renderSetup(cfg) {
@@ -1033,9 +1190,8 @@ function render() {
 }
 
 /* ---------- Drawer ---------- */
-const pips = (n) => `<span class="pips" aria-label="${n} of 5">${[1, 2, 3, 4, 5].map((p) => `<span class="${p <= n ? "on" : ""}"></span>`).join("")}</span>`;
-function scoresPanel(c, v) {
-  const role = state.rubric || v.role;
+const pips = (n) => `<span class="pips" aria-label="${n} of 5">${[1, 2, 3, 4, 5].map((p) => `<span class="${p <= n ? "on" : ""}" style="--i:${p - 1}"></span>`).join("")}</span>`;
+function rubricRows(c, v, role) {
   const low = lowest(c, role);
   const rows = RUBRICS[role].criteria.map((k) => {
     const s = c.scores[role][k.id] || {};
@@ -1049,10 +1205,14 @@ function scoresPanel(c, v) {
   const note = v.b === "interview" && role === v.role ? `Interview and probe the lowest criterion: ${low.k.name}.`
     : !applied.includes(v.role) && role === v.role ? `Applied for ${applied.map((r) => ROLE_LABEL[r]).join(" + ")}, but scores higher as ${ROLE_LABEL[v.role]}.`
     : `Lowest criterion: ${low.k.name} (${low.v}/5).`;
-  return `<div class="seg" role="group" aria-label="Rubric">${ROLES.map((r) => `<button data-rubric="${r}" aria-pressed="${r === role}">${ROLE_LABEL[r]} · ${roleScore(c, r)}</button>`).join("")}</div>
-    <span class="eyebrow">${ROLE_LABEL[role]} rubric</span>
+  return `<span class="eyebrow">${ROLE_LABEL[role]} rubric</span>
     ${rows}
     <div class="note"><p>${esc(note)}</p>${c.summary ? `<p>${esc(c.summary)}</p>` : ""}${c.gate && c.gate.status !== "pass" ? `<p>Gate: ${esc(c.gate.note)}.</p>` : ""}</div>`;
+}
+function scoresPanel(c, v) {
+  const role = state.rubric || v.role;
+  return `<div class="seg" role="group" aria-label="Rubric">${ROLES.map((r) => `<button data-rubric="${r}" aria-pressed="${r === role}">${ROLE_LABEL[r]} · ${roleScore(c, r)}</button>`).join("")}</div>
+    <div class="rub" style="display:flex;flex-direction:column;gap:14px">${rubricRows(c, v, role)}</div>`;
 }
 function briefPanel(c) {
   const b = c.brief;
@@ -1078,7 +1238,7 @@ function emailPanel(c) {
       <label class="field" for="em-role"><span>Role</span>
         <select id="em-role">${ROLES.map((r) => `<option value="${r}" ${e.role === r ? "selected" : ""}>${RUBRICS[r].label}</option>`).join("")}</select></label>
     </div>
-    ${changed ? `<p class="msg warn">You changed the email type or role. Press Rewrite with Gemini to redraft it to match.</p>` : ""}
+    ${changed ? `<p class="msg warn flash">You changed the email type or role. Press Rewrite with Gemini to redraft it to match.</p>` : ""}
     <label class="field" for="em-to"><span>To</span><input id="em-to" type="email" value="${esc(e.to)}" placeholder="candidate@example.com"></label>
     ${validEmail(e.to) ? "" : `<p class="msg bad">Add the candidate's email address to send.</p>`}
     <label class="field" for="em-subj"><span>Subject</span><input id="em-subj" type="text" value="${esc(e.subject)}"></label>
@@ -1121,7 +1281,7 @@ function actionsBlock(c) {
     ? `<button class="btn-lime" id="em-send" data-act="send-ask" ${ready ? "" : "disabled"}>${sendLabel}</button>`
     : gmail("btn-lime");
   const notes = [];
-  if (msg) notes.push(`<p class="msg ${msg[0]}" role="status">${esc(msg[1])}</p>`);
+  if (msg) notes.push(`<p class="msg ${msg[0]} flash" role="status">${esc(msg[1])}</p>`);
   if (sentReal) notes.push(`<p class="msg good">Sent to ${esc(c.sent.to)} on ${esc(fmtDate(c.sent.at))}${c.sent.kind ? ` (${c.sent.kind === "invite" ? "invite" : "decline"})` : ""}.</p>`);
   else if (c.sent && c.sent.test) notes.push(`<p class="msg muted">Last test send went to ${esc(c.sent.to)} on ${esc(fmtDate(c.sent.at))}.</p>`);
   if (!validEmail(e.to)) notes.push(`<p class="msg bad">No email address for this candidate. Add one on the Email tab.</p>`);
@@ -1129,53 +1289,118 @@ function actionsBlock(c) {
   if (!viaResend) notes.push(`<p class="msg muted">Resend isn't set up, so emails open as Gmail drafts.</p>`);
   return `${bar}${primary}<div class="row">${viaResend ? gmail("btn-soft") : ""}<button class="btn-plain" data-act="mark-sent" ${busy || !validEmail(e.to) || sentReal ? "disabled" : ""}>${sentReal ? "Marked as sent" : "Mark as sent"}</button></div>${notes.join("")}`;
 }
-let drawerWasOpen = false;
+const TABS = [["scores", "Scores"], ["brief", "Interview brief"], ["email", "Email"], ["saw", "What Gemini saw"]];
+const drawerView = { id: null, open: false, parts: {}, tab: null, rubric: null, closing: null };
+function headHtml(c, v) {
+  const o = v.o, other = v.role === "PM" ? "SPM" : "PM";
+  const verdict = (o.gate === "fail" ? "Pass · fails the gate" : BAND[v.b]) + (borderline(v.lead) ? " · borderline" : "");
+  return `<button class="dr-close" data-act="close" aria-label="Close">✕</button>
+    <span class="verdict">${esc(verdict)}</span>
+    <div><h2 class="dr-name">${esc(c.name)}</h2>
+      <p class="dr-meta">${esc(c.city || "Location not stated")} · ${GATE_STAMP[o.gate]} · applied ${esc(appliedFor(c).map((r) => ROLE_LABEL[r]).join(" + "))}</p></div>
+    <div class="dr-score"><span class="big">${v.lead}</span><span class="of">/ 100 on ${ROLE_LABEL[v.role]}</span>
+      <span class="other">${ROLE_LABEL[other]} <span class="mono">${other === "PM" ? o.pm : o.spm}</span></span></div>
+    <div class="dr-tools">${c.cv ? `<button class="btn-ghost" data-act="download-cv">Download CV</button>` : ""}${c.contactEmail ? `<span class="btn-ghost" style="cursor:text">${esc(c.contactEmail)}</span>` : ""}</div>`;
+}
+function footHtml(c) {
+  return `<span>Screened ${esc(fmtDate(c.createdAt))}${c.years && c.years.total ? ` · about ${c.years.total} yrs total, ${c.years.pm || 0} as PM` : ""}</span>
+    ${state.confirmRemove === c.id
+      ? `<span style="display:flex;gap:6px;align-items:center">Remove ${esc(c.name)}? <button class="danger-link" data-act="remove-now">Remove</button><button class="btn-ghost sm" data-act="remove-cancel">Keep</button></span>`
+      : `<button class="danger-link" data-act="remove-ask">Remove candidate</button>`}`;
+}
+// Updates only the parts of the drawer that changed, so it never flashes and new content can fade in.
 function renderDetail(force) {
-  const d = $("#drawer"), bd = $("#backdrop");
+  const d = $("#drawer");
   const c = state.candidates.find((x) => x.id === state.selected);
-  if (!c) {
-    d.hidden = true; bd.hidden = true; d.innerHTML = ""; document.body.classList.remove("drawer-open");
-    if (drawerWasOpen && state.returnFocus) { const t = document.querySelector(`.card[data-id="${CSS.escape(state.returnFocus)}"]`); if (t) t.focus(); }
-    drawerWasOpen = false;
-    return;
-  }
+  if (!c) { if (drawerView.open) hideDrawer(); return; }
   const a = document.activeElement;
   if (!force && a && d.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { state.pendingDetail = true; return; }
   state.pendingDetail = false;
-  const v = lensView(c), o = v.o;
-  const other = v.role === "PM" ? "SPM" : "PM";
-  const verdict = (o.gate === "fail" ? "Pass · fails the gate" : BAND[v.b]) + (borderline(v.lead) ? " · borderline" : "");
-  const tabs = [["scores", "Scores"], ["brief", "Interview brief"], ["email", "Email"], ["saw", "What Gemini saw"]];
+  const v = lensView(c);
+  const fresh = drawerView.id !== c.id || !d.querySelector(".dr-body");
+  if (fresh) {
+    d.innerHTML = `<div class="dr-head"></div>
+      <nav class="dr-tabs" role="tablist" aria-label="Candidate details">${TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="false">${l}<span class="dot" title="Not sent yet" hidden></span></button>`).join("")}</nav>
+      <div class="dr-body" role="tabpanel"></div><div class="dr-actions"></div><div class="dr-foot"></div>`;
+    Object.assign(drawerView, { id: c.id, parts: {}, tab: null, rubric: null });
+  }
+  const set = (sel, html, onChange) => {
+    if (drawerView.parts[sel] === html) return false;
+    drawerView.parts[sel] = html;
+    const el = d.querySelector(sel); el.innerHTML = html;
+    if (onChange) onChange(el);
+    return true;
+  };
+  const head = d.querySelector(".dr-head");
+  head.style.background = TINT[v.b];
+  set(".dr-head", headHtml(c, v));
   const unsent = !c.sent || c.sent.test;
-  const scrollTop = d.scrollTop;
-  d.innerHTML = `<div class="dr-head" style="background:${TINT[v.b]}">
-      <button class="dr-close" data-act="close" aria-label="Close">✕</button>
-      <span class="verdict">${esc(verdict)}</span>
-      <div><h2 class="dr-name">${esc(c.name)}</h2>
-        <p class="dr-meta">${esc(c.city || "Location not stated")} · ${GATE_STAMP[o.gate]} · applied ${esc(appliedFor(c).map((r) => ROLE_LABEL[r]).join(" + "))}</p></div>
-      <div class="dr-score"><span class="big">${v.lead}</span><span class="of">/ 100 on ${ROLE_LABEL[v.role]}</span>
-        <span class="other">${ROLE_LABEL[other]} <span class="mono">${other === "PM" ? o.pm : o.spm}</span></span></div>
-      <div class="dr-tools">${c.cv ? `<button class="btn-ghost" data-act="download-cv">Download CV</button>` : ""}${c.contactEmail ? `<span class="btn-ghost" style="cursor:text">${esc(c.contactEmail)}</span>` : ""}</div>
-    </div>
-    <nav class="dr-tabs" role="tablist" aria-label="Candidate details">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${l}${k === "email" && unsent ? `<span class="dot" title="Not sent yet"></span>` : ""}</button>`).join("")}</nav>
-    <div class="dr-body" role="tabpanel">${state.tab === "scores" ? scoresPanel(c, v) : state.tab === "brief" ? briefPanel(c) : state.tab === "email" ? emailPanel(c) : sawPanel(c)}</div>
-    <div class="dr-actions">${actionsBlock(c)}</div>
-    <div class="dr-foot">
-      <span>Screened ${esc(fmtDate(c.createdAt))}${c.years && c.years.total ? ` · about ${c.years.total} yrs total, ${c.years.pm || 0} as PM` : ""}</span>
-      ${state.confirmRemove === c.id
-        ? `<span style="display:flex;gap:6px;align-items:center">Remove ${esc(c.name)}? <button class="danger-link" data-act="remove-now">Remove</button><button class="btn-ghost sm" data-act="remove-cancel">Keep</button></span>`
-        : `<button class="danger-link" data-act="remove-ask">Remove candidate</button>`}
-    </div>`;
-  d.hidden = false; bd.hidden = false; document.body.classList.add("drawer-open");
-  if (!drawerWasOpen) { drawerWasOpen = true; d.scrollTop = 0; setTimeout(() => { const x = d.querySelector(".dr-close"); if (x) x.focus(); }, 0); }
-  else d.scrollTop = scrollTop;
+  d.querySelectorAll(".dr-tabs button").forEach((b) => {
+    b.setAttribute("aria-selected", String(b.dataset.tab === state.tab));
+    const dot = b.querySelector(".dot"); if (dot) dot.hidden = !(b.dataset.tab === "email" && unsent);
+  });
+  const panel = state.tab === "scores" ? scoresPanel(c, v) : state.tab === "brief" ? briefPanel(c) : state.tab === "email" ? emailPanel(c) : sawPanel(c);
+  const switched = !fresh && (drawerView.tab !== state.tab);
+  set(".dr-body", panel, (el) => { if (fresh || switched) enterPanel(el); });
+  drawerView.tab = state.tab; drawerView.rubric = state.rubric;
+  set(".dr-actions", actionsBlock(c));
+  set(".dr-foot", footHtml(c));
+  if (!drawerView.open) showDrawer();
+  // Measured a frame later, once the drawer is on screen (a hidden drawer measures as zero width).
+  requestAnimationFrame(() => {
+    moveIndicator(d.querySelector(".dr-tabs"), !fresh);
+    const seg = d.querySelector(".dr-body .seg"); if (seg) moveIndicator(seg, !!seg.querySelector(".ind"));
+  });
+}
+function enterPanel(el) {
+  if (!canAnimate(el)) return;
+  el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter");
+  clearTimeout(el._enterT); el._enterT = setTimeout(() => el.classList.remove("enter"), 900);
+  [...el.children].forEach((child, i) => fadeUp(child, Math.min(i, 8) * 35, 6));
+}
+// Rubric switch: slide the pill and swap only the criteria list.
+function switchRubric(role) {
+  const c = state.candidates.find((x) => x.id === state.selected);
+  const body = $("#drawer .dr-body");
+  if (!c || !body || state.tab !== "scores") { state.rubric = role; renderDetail(true); return; }
+  state.rubric = role;
+  const seg = body.querySelector(".seg");
+  seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.rubric === role)));
+  moveIndicator(seg, true);
+  const rub = body.querySelector(".rub");
+  rub.innerHTML = rubricRows(c, lensView(c), role);
+  enterPanel(rub);
+  drawerView.parts[".dr-body"] = scoresPanel(c, lensView(c));
+}
+function showDrawer() {
+  const d = $("#drawer"), bd = $("#backdrop");
+  clearTimeout(drawerView.closing);
+  d.hidden = false; bd.hidden = false;
+  void d.offsetWidth;
+  d.classList.add("open"); bd.classList.add("open");
+  document.body.classList.add("drawer-open");
+  drawerView.open = true;
+  d.scrollTop = 0;
+  setTimeout(() => { const x = d.querySelector(".dr-close"); if (x) x.focus({ preventScroll: true }); }, reduced() ? 0 : 60);
+}
+function hideDrawer() {
+  const d = $("#drawer"), bd = $("#backdrop");
+  d.classList.remove("open"); bd.classList.remove("open");
+  document.body.classList.remove("drawer-open");
+  drawerView.open = false;
+  const finish = () => { if (drawerView.open) return; d.hidden = true; bd.hidden = true; d.innerHTML = ""; drawerView.id = null; drawerView.parts = {}; };
+  drawerView.closing = setTimeout(finish, reduced() ? 0 : 460);
+  if (state.returnFocus) { const t = document.querySelector(`.card[data-id="${CSS.escape(state.returnFocus)}"]`); if (t) t.focus({ preventScroll: true }); }
+}
+function markSelectedCard() {
+  document.querySelectorAll("#board .card").forEach((el) => el.classList.toggle("sel", el.dataset.id === state.selected));
 }
 function openCandidate(id) {
   state.selected = id; state.returnFocus = id; state.tab = "scores"; state.rubric = null;
   state.confirmSend = null; state.confirmRemove = null; state.opened = null;
-  renderBoard(); renderDetail(true);
+  markSelectedCard(); renderDetail(true);
 }
-function closeDrawer() { state.selected = null; state.confirmSend = null; state.confirmRemove = null; renderBoard(); renderDetail(true); }
+function closeDrawer() { state.selected = null; state.confirmSend = null; state.confirmRemove = null; markSelectedCard(); renderDetail(true); }
 
 /* ---------- Events ---------- */
 const selectedRoles = () => ROLES.filter((r) => state.roles[r]);
@@ -1203,15 +1428,21 @@ document.addEventListener("click", async (ev) => {
   if (link) { state.opened = state.selected; if (state.selected) state.msg[state.selected] = null; setTimeout(() => renderDetail(true), 0); return; }
   const t = ev.target.closest("button");
   if (!t) return;
-  if (t.dataset.unpick != null) { ev.preventDefault(); state.files.splice(+t.dataset.unpick, 1); updateIntake(); return; }
-  if (t.dataset.lens) { state.lens = t.dataset.lens; render(); return; }
+  if (t.dataset.unpick != null) {
+    ev.preventDefault();
+    const chip = t.closest(".file-chip"), i = +t.dataset.unpick;
+    const done = () => { state.files.splice(i, 1); updateIntake(); };
+    if (chip && canAnimate(chip)) chip.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.9)" }], { duration: 160, easing: "ease-in" }).onfinish = done; else done();
+    return;
+  }
+  if (t.dataset.lens) { if (state.lens !== t.dataset.lens) { state.lens = t.dataset.lens; render(); } return; }
   if (t.dataset.role) { state.roles[t.dataset.role] = !state.roles[t.dataset.role]; renderControls(); updateIntake(); return; }
   if (t.id === "gear") { state.settingsOpen = !state.settingsOpen; renderSettings(); return; }
   if (t.dataset.retry != null) { const j = state.jobs[+t.dataset.retry]; if (j) { j.state = "queued"; renderJobs(); runQueue(); } return; }
   if (t.dataset.dismiss != null) { state.jobs.splice(+t.dataset.dismiss, 1); renderJobs(); return; }
   if (t.dataset.id) { openCandidate(t.dataset.id); return; }
-  if (t.dataset.tab) { state.tab = t.dataset.tab; renderDetail(true); return; }
-  if (t.dataset.rubric) { state.rubric = t.dataset.rubric; renderDetail(true); return; }
+  if (t.dataset.tab) { if (state.tab !== t.dataset.tab) { state.tab = t.dataset.tab; renderDetail(true); } return; }
+  if (t.dataset.rubric) { if ((state.rubric || null) !== t.dataset.rubric) switchRubric(t.dataset.rubric); return; }
   const c = state.candidates.find((x) => x.id === state.selected);
   const act = t.dataset.act;
   if (act === "close") { closeDrawer(); return; }
@@ -1269,13 +1500,23 @@ $("#sign-out").addEventListener("click", () => {
 
 /* ---------- Sign-in and boot ---------- */
 function showGate(msg) {
-  $("#gate").hidden = false;
+  const g = $("#gate");
+  clearTimeout(g._t);
+  const wasHidden = g.hidden;
+  g.hidden = false; g.classList.remove("leaving");
+  if (wasHidden) fadeUp(g.querySelector("form"), 0, 12);
   $("#gate-msg").textContent = msg || "";
   setTimeout(() => $("#gate-pass").focus(), 0);
 }
+function hideGate() {
+  const g = $("#gate");
+  if (g.hidden) return;
+  g.classList.add("leaving");
+  g._t = setTimeout(() => { g.hidden = true; g.classList.remove("leaving"); }, reduced() ? 0 : 360);
+}
 async function start() {
   const r = await api("/api/session", { method: "POST" });
-  $("#gate").hidden = true;
+  hideGate();
   state.cfg = r.configured;
   sampleReady = !!r.configured.ai; sampleChecked = true;
   renderSetup(r.configured); updateIntake(); renderJobs();
@@ -1293,13 +1534,16 @@ $("#gate-form").addEventListener("submit", async (ev) => {
     try { localStorage.setItem("kargo-desk-key", pass); } catch {}
     $("#gate-pass").value = "";
   } catch (e) {
+    const form = $("#gate-form");
+    if (canAnimate(form)) form.animate([{ transform: "translateX(0)" }, { transform: "translateX(-8px)" }, { transform: "translateX(6px)" }, { transform: "translateX(-3px)" }, { transform: "none" }], { duration: 380, easing: "ease-out" });
     if (e.code === "unauthorized") $("#gate-msg").textContent = "That password didn't work.";
     else if (e.code === "server_config") $("#gate-msg").textContent = e.message;
     else $("#gate-msg").textContent = "Couldn't reach the server. Try again.";
   } finally { $("#gate-go").disabled = false; }
 });
 
-renderSettings(); updateIntake(); render();
+buildControls();
+renderSettings(); updateIntake(); renderControls(false); renderBoard();
 if (!authKey) showGate("");
 else start().catch((e) => {
   if (e.code === "unauthorized") return;
