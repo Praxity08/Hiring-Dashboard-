@@ -16,3 +16,12 @@ create table if not exists cv_files (
 );
 
 create index if not exists candidates_updated_at_idx on candidates (updated_at desc);
+
+-- "live" = the founder's own candidates, "sample" = read-only demo data.
+alter table candidates add column if not exists dataset text not null default 'live';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'candidates_dataset_check') then
+    alter table candidates add constraint candidates_dataset_check check (dataset in ('live', 'sample'));
+  end if;
+end $$;
+create index if not exists candidates_dataset_updated_idx on candidates (dataset, updated_at desc);

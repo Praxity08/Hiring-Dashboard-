@@ -31,6 +31,15 @@ Screens Product Manager (PM) and Senior Product Manager (SPM) candidates against
 | `design/` | Design reference: `DESIGN.md` spec, `Hiring Desk v2.dc.html` (current) and v1. Not deployed. |
 | `kargo-hiring-desk/` | The original claude.ai Artifact version |
 
+## Live and Sample
+
+A switch in the header moves between two sets of candidates, stored in the same Neon table (`dataset` column):
+
+- **Live**: your own candidates. Upload, screen, edit, email.
+- **Sample**: 60 example CVs, pre-scored against both rubrics with the same anonymising and scoring rules, for demos. Read-only: the server refuses edits, deletes and sends for sample rows, so nothing there can be changed or emailed.
+
+The sample CVs themselves are not in this repository; they live only in the database.
+
 ## Design
 
 The interface follows `design/DESIGN.md` (AI Recruiter · Hiring Desk v2): lime hero with the upload area, a three-column board (Advance 75+, Interview 60–74, Pass under 60) and a candidate drawer. Fonts are Bricolage Grotesque, Instrument Sans and JetBrains Mono; colours are the oklch tokens at the top of `index.html`. To preview the reference, serve the repo root and open `design/Hiring Desk v2.dc.html`.

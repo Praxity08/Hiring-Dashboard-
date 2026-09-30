@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { authorize, db, deepMerge, ID_RE, sendError } from "../lib/server.js";
+import { authorize, db, deepMerge, ID_RE, sendError, toJsonb } from "../lib/server.js";
 
 const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]{2,}$/;
 
@@ -31,8 +31,9 @@ export default async function handler(req, res) {
 
   try {
     const sql = db();
-    const [row] = await sql`select data from candidates where id = ${id}`;
+    const [row] = await sql`select data, dataset from candidates where id = ${id}`;
     if (!row) return fail(res, 404, "not_found", "That candidate no longer exists.");
+    if (row.dataset !== "live") return fail(res, 403, "sample_read_only", "Sample candidates can't be emailed. Switch to Live to send.");
     if (row.data.sent && !row.data.sent.test && !again) {
       return fail(res, 409, "already_sent", `An email was already sent to ${row.data.sent.to}. Use Send again to send another.`);
     }
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
     const sent = { at: new Date().toISOString(), to: deliverTo, intendedTo: recipient, test: Boolean(testTo), kind, role, provider: "resend", messageId: out.id || null };
     try {
       const merged = deepMerge(row.data, { email: { kind, role, subject: String(subject), body: String(body) }, sent, contactEmail: recipient });
-      await sql`update candidates set data = ${JSON.stringify(merged)}::jsonb, updated_at = now() where id = ${id}`;
+      await sql`update candidates set data = ${toJsonb(merged)}::jsonb, updated_at = now() where id = ${id}`;
     } catch (err) {
       console.error(err);
       return res.status(200).json({ ok: true, sent, recorded: false });

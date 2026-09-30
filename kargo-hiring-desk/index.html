@@ -458,7 +458,8 @@ function asWritten(text, tokens) {
   return s === s.toUpperCase() || s === s.toLowerCase() ? titleCase(s) : s;
 }
 function nameTokens(s) {
-  return s.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 2 && !/^(cv|resume|final|updated|new|latest|copy|pdf|docx|v\d*)$/.test(t));
+  // Drop file-name words that aren't names: document words and role labels (e.g. "pm_01_priya_krishnan.pdf").
+  return s.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 2 && !/^(cv|resume|final|updated|new|latest|copy|pdf|docx|doc|txt|v\d*|pm|spm|apm|gpm|sr|senior|junior|jr|product|manager|mgr|profile|application|applicant|candidate|role|job|kargo)$/.test(t));
 }
 function identify(text, filename) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -494,7 +495,15 @@ function redact(text, ident) {
   let t = text.replace(new RegExp(EMAIL_RE.source, "gi"), () => { removed.email++; return "[email]"; });
   t = t.replace(/\b(?:https?:\/\/)?(?:www\.)?(?:linkedin\.com|github\.com|gitlab\.com|leetcode\.com|behance\.net|dribbble\.com|medium\.com|twitter\.com|x\.com)\/[^\s|·,;]*/gi, () => { removed.link++; return "[link]"; });
   t = t.replace(/\bhttps?:\/\/[^\s|·,;]+/gi, () => { removed.link++; return "[link]"; });
-  t = t.replace(/\+?\d[\d\s().-]{8,}\d/g, (m) => { const d = m.replace(/\D/g, "").length; if (d >= 10 && d <= 13) { removed.phone++; return "[phone]"; } return m; });
+  // Phone numbers, including ones a PDF prints twice in a row ("+91 98202 11345 98202 11345").
+  const isYearList = (s) => { const g = s.match(/\d+/g) || []; return g.length > 1 && g.every((x) => x.length === 4 && +x >= 1950 && +x <= 2039); };
+  t = t.replace(/\+?\d[\d\s().-]{8,}\d/g, (m) => {
+    const d = m.replace(/\D/g, "").length;
+    if (isYearList(m)) return m;
+    if (d >= 10 && d <= 13) { removed.phone++; return "[phone]"; }
+    if (d > 13) return m.replace(/(?:\+\d{1,3}[\s-]?)?\d(?:[\s().-]{0,2}\d){9}/g, (p) => { if (isYearList(p)) return p; removed.phone++; return "[phone]"; });
+    return m;
+  });
   for (const tok of ident.name.split(/\s+/).filter((x) => x.length >= 2)) {
     const re = new RegExp("\\b" + tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "gi");
     t = t.replace(re, () => { removed.name++; return "[Candidate]"; });
@@ -619,7 +628,8 @@ function hash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.cha
 async function processJob(job) {
   job.stage = "Reading file"; renderJobs();
   const raw = await extractText(job.file);
-  const text = String(raw).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Control characters (e.g. NULs some PDFs contain) can't be stored and mean nothing to a reader.
+  const text = String(raw).replace(/\r/g, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (text.length < 150) throw { code: "no_text" };
   const ident = identify(text, job.file.name);
   const red = redact(text, ident);

@@ -274,6 +274,22 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 .form textarea{min-height:260px;line-height:1.6;resize:vertical}
 .form .acts{display:flex;flex-wrap:wrap;gap:8px}
 .saw{margin:0;padding:14px;border-radius:16px;background:var(--note);font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:480px;overflow:auto}
+/* live / sample switch */
+.pillbar.mode{background:oklch(0.93 0.03 95)}
+.pillbar.mode>button[data-mode="sample"][aria-pressed="true"]{color:var(--ink)}
+.pillbar.mode.is-sample>.ind{background:var(--int-dot)}
+.pillbar.mode>button .live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--adv-dot);margin-right:6px;vertical-align:middle;box-shadow:0 0 0 0 oklch(0.72 0.19 130 / .5)}
+.pillbar.mode>button[aria-pressed="true"] .live-dot{animation:ping 1.8s ease-out infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 oklch(0.72 0.19 130 / .55)}80%,100%{box-shadow:0 0 0 7px oklch(0.72 0.19 130 / 0)}}
+.sample-note{margin-bottom:12px;padding:14px 18px;border-radius:18px;background:var(--col-int);border:1.5px dashed var(--int-dot);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px}
+.sample-note p{flex:1 1 280px}
+.sample-note b{font-weight:600}
+.hero .drop,.hero .screen-btn{transition:opacity .3s var(--ease),filter .3s var(--ease),transform .15s var(--ease),border-color .2s}
+.hero.is-sample .drop{opacity:.55;filter:saturate(.6);pointer-events:none}
+.board{transition:opacity .2s var(--ease)}
+.board.swapping{opacity:0}
+@media (max-width:640px){.pillbar.mode{order:5}}
+
 /* ---------- Motion ---------- */
 .btn-ink,.btn-lime,.btn-soft,.btn-plain,.btn-ghost,.role-chip,.screen-btn,.gear,.signout,.danger-link,.dr-close,
 .pillbar button,.seg button,.dr-tabs button,.file-chip button{transition:background-color .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease),opacity .2s var(--ease),transform .15s var(--ease),box-shadow .2s var(--ease)}
@@ -296,7 +312,7 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
 /* things that appear */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes pipIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.setup>div,.confirm-bar,.msg.flash,#sample-unavail,#screen-hint:not(:empty){animation:fadeUp .3s var(--ease-out) both}
+.setup>div,.sample-note,.confirm-bar,.msg.flash,#sample-unavail,#screen-hint:not(:empty){animation:fadeUp .3s var(--ease-out) both}
 .enter .pips span.on{transform-origin:left center;animation:pipIn .5s var(--ease-out) both;animation-delay:calc(var(--i,0) * 45ms)}
 
 /* settings: expands open */
@@ -343,6 +359,7 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
   <div class="divider" aria-hidden="true"></div>
   <div class="meta">Kargo<br>PM &amp; Senior PM · Rubrics v2</div>
   <div class="spacer"></div>
+  <div class="pillbar mode" role="group" aria-label="Which candidates" id="mode"></div>
   <div class="pillbar" role="group" aria-label="Rank by" id="lens"></div>
   <button class="gear" id="gear" aria-expanded="false" aria-controls="settings" aria-label="Settings">⚙</button>
 </header>
@@ -358,10 +375,11 @@ button:disabled,.btn-lime[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
     </div>
   </div>
   <div id="setup"></div>
+  <div id="sample-note"></div>
 </div>
 
 <section class="wrap" aria-label="Upload CVs">
-  <div class="hero">
+  <div class="hero" id="hero">
     <div class="hero-copy">
       <h1>Land on your next great PM.</h1>
       <p class="sub">Every CV is scored against both rubrics — so you’ll spot when a PM applicant is really a Senior PM.</p>
@@ -455,7 +473,7 @@ const state = {
   candidates: [], loaded: false, selected: null, view: "shortlist", lens: "best", tab: "scores",
   jobs: [], edits: {}, confirmSend: null, confirmRemove: null, msg: {}, busy: {}, pendingDetail: false,
   files: [], dbNote: "", cfg: {}, opened: null,
-  roles: { PM: true, SPM: true }, rubric: null, settingsOpen: false, returnFocus: null,
+  roles: { PM: true, SPM: true }, rubric: null, settingsOpen: false, returnFocus: null, mode: "live",
 };
 let sampleReady = false, running = false, sampleChecked = false;
 let authKey = "";
@@ -542,7 +560,9 @@ async function fileToBase64(file) {
 const MAX_CV_BYTES = 3 * 1024 * 1024;
 const CV_MIME = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain", md: "text/markdown" };
 async function loadCandidates() {
-  const data = await api("/api/candidates");
+  const mode = state.mode;
+  const data = await api("/api/candidates?dataset=" + mode);
+  if (mode !== state.mode) return;
   state.candidates = data.candidates || [];
   state.loaded = true;
   if (state.selected && !state.candidates.some((c) => c.id === state.selected)) state.selected = null;
@@ -635,7 +655,8 @@ function asWritten(text, tokens) {
   return s === s.toUpperCase() || s === s.toLowerCase() ? titleCase(s) : s;
 }
 function nameTokens(s) {
-  return s.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 2 && !/^(cv|resume|final|updated|new|latest|copy|pdf|docx|v\d*)$/.test(t));
+  // Drop file-name words that aren't names: document words and role labels (e.g. "pm_01_priya_krishnan.pdf").
+  return s.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 2 && !/^(cv|resume|final|updated|new|latest|copy|pdf|docx|doc|txt|v\d*|pm|spm|apm|gpm|sr|senior|junior|jr|product|manager|mgr|profile|application|applicant|candidate|role|job|kargo)$/.test(t));
 }
 function identify(text, filename) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -671,7 +692,15 @@ function redact(text, ident) {
   let t = text.replace(new RegExp(EMAIL_RE.source, "gi"), () => { removed.email++; return "[email]"; });
   t = t.replace(/\b(?:https?:\/\/)?(?:www\.)?(?:linkedin\.com|github\.com|gitlab\.com|leetcode\.com|behance\.net|dribbble\.com|medium\.com|twitter\.com|x\.com)\/[^\s|·,;]*/gi, () => { removed.link++; return "[link]"; });
   t = t.replace(/\bhttps?:\/\/[^\s|·,;]+/gi, () => { removed.link++; return "[link]"; });
-  t = t.replace(/\+?\d[\d\s().-]{8,}\d/g, (m) => { const d = m.replace(/\D/g, "").length; if (d >= 10 && d <= 13) { removed.phone++; return "[phone]"; } return m; });
+  // Phone numbers, including ones a PDF prints twice in a row ("+91 98202 11345 98202 11345").
+  const isYearList = (s) => { const g = s.match(/\d+/g) || []; return g.length > 1 && g.every((x) => x.length === 4 && +x >= 1950 && +x <= 2039); };
+  t = t.replace(/\+?\d[\d\s().-]{8,}\d/g, (m) => {
+    const d = m.replace(/\D/g, "").length;
+    if (isYearList(m)) return m;
+    if (d >= 10 && d <= 13) { removed.phone++; return "[phone]"; }
+    if (d > 13) return m.replace(/(?:\+\d{1,3}[\s-]?)?\d(?:[\s().-]{0,2}\d){9}/g, (p) => { if (isYearList(p)) return p; removed.phone++; return "[phone]"; });
+    return m;
+  });
   for (const tok of ident.name.split(/\s+/).filter((x) => x.length >= 2)) {
     const re = new RegExp("\\b" + tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "gi");
     t = t.replace(re, () => { removed.name++; return "[Candidate]"; });
@@ -836,7 +865,8 @@ async function processJob(job) {
 async function scoreJob(job) {
   job.stage = "Reading file"; renderJobs();
   const raw = await extractText(job.file);
-  const text = String(raw).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Control characters (e.g. NULs some PDFs contain) can't be stored and mean nothing to a reader.
+  const text = String(raw).replace(/\r/g, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (text.length < 150) throw { code: "no_text" };
   const ident = identify(text, job.file.name);
   const red = redact(text, ident);
@@ -1068,7 +1098,7 @@ function renderBoard() {
   }
   const colHeights = [...board.querySelectorAll(".col")].map((el) => el.getBoundingClientRect().height);
   const rows = filtered().all;
-  const countText = `${rows.length} candidate${rows.length === 1 ? "" : "s"} · ranked by ${state.lens === "best" ? "best fit" : ROLE_LABEL[state.lens]}`;
+  const countText = `${rows.length} ${state.mode === "sample" ? "sample " : ""}candidate${rows.length === 1 ? "" : "s"} · ranked by ${state.lens === "best" ? "best fit" : ROLE_LABEL[state.lens]}`;
   const countEl = $("#count");
   if (countEl.textContent !== countText) { countEl.textContent = countText; if (boardShown) fadeUp(countEl, 0, 4); }
   board.innerHTML = COLUMNS.map((col) => {
@@ -1103,12 +1133,22 @@ function renderBoard() {
 
 /* ---------- Header controls: built once, then updated in place so they can animate ---------- */
 function buildControls() {
+  $("#mode").innerHTML = `<button data-mode="live" aria-pressed="false"><span class="live-dot" aria-hidden="true"></span>Live</button><button data-mode="sample" aria-pressed="false">Sample</button>`;
   $("#lens").innerHTML = [["best", "Best fit"], ["PM", "PM"], ["SPM", "Senior PM"]]
     .map(([k, l]) => `<button data-lens="${k}" aria-pressed="false">${l}</button>`).join("");
   $("#roles").innerHTML = [["PM", "Product Manager"], ["SPM", "Senior PM"]]
     .map(([k, l]) => `<button class="role-chip" data-role="${k}" aria-pressed="false"><span class="mark" aria-hidden="true"></span> ${l}</button>`).join("");
 }
 function renderControls(animate = true) {
+  const sample = state.mode === "sample";
+  $("#mode").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  $("#mode").classList.toggle("is-sample", sample);
+  moveIndicator($("#mode"), animate);
+  $("#hero").classList.toggle("is-sample", sample);
+  $("#files").disabled = sample;
+  const note = $("#sample-note");
+  const want = sample ? `<div class="sample-note"><p><b>You're looking at sample data:</b> ${state.loaded ? state.candidates.length + " " : ""}example CVs, scored against the same rubrics. It's read-only, so nothing here is saved or emailed.</p><button class="btn-ink sm" data-mode="live">Back to Live</button></div>` : "";
+  if (note._html !== want) { note._html = want; note.innerHTML = want; }
   $("#lens").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lens === state.lens)));
   moveIndicator($("#lens"), animate);
   $("#roles").querySelectorAll("button").forEach((b) => {
@@ -1166,10 +1206,10 @@ function updateIntake() {
   const roles = selectedRoles();
   const btn = $("#screen");
   const wasDisabled = btn.disabled;
-  btn.disabled = !(n && roles.length && sampleReady);
+  btn.disabled = !(n && roles.length && sampleReady) || state.mode === "sample";
   $("#screen-label").textContent = n ? `Screen ${n} CV${n === 1 ? "" : "s"}` : "Screen CVs";
   if (wasDisabled && !btn.disabled && canAnimate(btn)) btn.animate([{ transform: "scale(.98)" }, { transform: "scale(1.015)" }, { transform: "none" }], { duration: 380, easing: EASE_OUT });
-  $("#screen-hint").textContent = !roles.length ? "Pick at least one role." : "";
+  $("#screen-hint").textContent = state.mode === "sample" ? "Switch to Live to screen your own CVs." : !roles.length ? "Pick at least one role." : "";
   $("#sample-unavail").hidden = sampleReady || !sampleChecked;
 }
 function renderSettings() {
@@ -1230,22 +1270,23 @@ function briefPanel(c) {
 }
 function emailPanel(c) {
   const e = currentEmail(c), busy = state.busy[c.id];
+  const ro = state.mode === "sample" ? "readonly" : "";
   const changed = c.email && (e.kind !== c.email.kind || e.role !== c.email.role);
   return `<div class="form">
     <div class="line">
       <label class="field" for="em-kind"><span>Email type</span>
-        <select id="em-kind"><option value="invite" ${e.kind === "invite" ? "selected" : ""}>Interview invite</option><option value="reject" ${e.kind === "reject" ? "selected" : ""}>Rejection</option></select></label>
+        <select id="em-kind" ${ro ? "disabled" : ""}><option value="invite" ${e.kind === "invite" ? "selected" : ""}>Interview invite</option><option value="reject" ${e.kind === "reject" ? "selected" : ""}>Rejection</option></select></label>
       <label class="field" for="em-role"><span>Role</span>
-        <select id="em-role">${ROLES.map((r) => `<option value="${r}" ${e.role === r ? "selected" : ""}>${RUBRICS[r].label}</option>`).join("")}</select></label>
+        <select id="em-role" ${ro ? "disabled" : ""}>${ROLES.map((r) => `<option value="${r}" ${e.role === r ? "selected" : ""}>${RUBRICS[r].label}</option>`).join("")}</select></label>
     </div>
     ${changed ? `<p class="msg warn flash">You changed the email type or role. Press Rewrite with Gemini to redraft it to match.</p>` : ""}
-    <label class="field" for="em-to"><span>To</span><input id="em-to" type="email" value="${esc(e.to)}" placeholder="candidate@example.com"></label>
+    <label class="field" for="em-to"><span>To</span><input id="em-to" type="email" value="${esc(e.to)}" placeholder="candidate@example.com" ${ro}></label>
     ${validEmail(e.to) ? "" : `<p class="msg bad">Add the candidate's email address to send.</p>`}
-    <label class="field" for="em-subj"><span>Subject</span><input id="em-subj" type="text" value="${esc(e.subject)}"></label>
-    <label class="field" for="em-body"><span>Message</span><textarea id="em-body">${esc(e.body)}</textarea></label>
+    <label class="field" for="em-subj"><span>Subject</span><input id="em-subj" type="text" value="${esc(e.subject)}" ${ro}></label>
+    <label class="field" for="em-body"><span>Message</span><textarea id="em-body" ${ro}>${esc(e.body)}</textarea></label>
     <div class="acts">
-      <button class="btn-plain sm" data-act="rewrite" ${sampleReady && !busy ? "" : "disabled"}>${busy === "rewrite" ? "Rewriting…" : "Rewrite with Gemini"}</button>
-      <button class="btn-plain sm" data-act="save" id="em-save" ${isDirty(c.id) && !busy ? "" : "disabled"}>Save changes</button>
+      <button class="btn-plain sm" data-act="rewrite" ${sampleReady && !busy && !ro ? "" : "disabled"}>${busy === "rewrite" ? "Rewriting…" : "Rewrite with Gemini"}</button>
+      ${ro ? "" : `<button class="btn-plain sm" data-act="save" id="em-save" ${isDirty(c.id) && !busy ? "" : "disabled"}>Save changes</button>`}
       <button class="btn-ghost sm" data-act="copy">Copy email</button>
     </div>
   </div>`;
@@ -1262,6 +1303,10 @@ function sawPanel(c) {
 }
 function actionsBlock(c) {
   const e = currentEmail(c), busy = state.busy[c.id], msg = state.msg[c.id];
+  if (state.mode === "sample") {
+    return `<button class="btn-lime" disabled>${e.kind === "invite" ? "Send invite" : "Send decline"}</button>
+      <p class="msg muted">This is sample data, so sending is switched off. Copy the draft from the Email tab, or switch to Live for your own candidates.</p>`;
+  }
   const ready = validEmail(e.to) && e.subject.trim() && e.body.trim() && !busy;
   const viaResend = !!state.cfg.email, testTo = state.cfg.emailTestTo;
   const sentReal = !!(c.sent && !c.sent.test);
@@ -1304,7 +1349,7 @@ function headHtml(c, v) {
 }
 function footHtml(c) {
   return `<span>Screened ${esc(fmtDate(c.createdAt))}${c.years && c.years.total ? ` · about ${c.years.total} yrs total, ${c.years.pm || 0} as PM` : ""}</span>
-    ${state.confirmRemove === c.id
+    ${state.mode === "sample" ? `<span>Sample candidate</span>` : state.confirmRemove === c.id
       ? `<span style="display:flex;gap:6px;align-items:center">Remove ${esc(c.name)}? <button class="danger-link" data-act="remove-now">Remove</button><button class="btn-ghost sm" data-act="remove-cancel">Keep</button></span>`
       : `<button class="danger-link" data-act="remove-ask">Remove candidate</button>`}`;
 }
@@ -1402,6 +1447,34 @@ function openCandidate(id) {
 }
 function closeDrawer() { state.selected = null; state.confirmSend = null; state.confirmRemove = null; markSelectedCard(); renderDetail(true); }
 
+/* ---------- Live / Sample ---------- */
+async function switchMode(mode) {
+  if (mode === state.mode || (mode !== "live" && mode !== "sample")) return;
+  state.mode = mode;
+  try { localStorage.setItem("kargo-desk-mode", mode); } catch {}
+  if (state.selected) closeDrawer();
+  renderControls(); updateIntake();
+  const board = $("#board");
+  board.classList.add("swapping");
+  const wait = new Promise((r) => setTimeout(r, reduced() ? 0 : 200));
+  try {
+    await Promise.all([loadCandidatesQuiet(), wait]);
+  } catch (e) {
+    if (e.code !== "unauthorized") $("#setup").innerHTML = `<div class="setup">Couldn't load ${mode === "sample" ? "the sample" : "your"} candidates. Try again.</div>`;
+  }
+  boardShown = false;
+  board.classList.remove("swapping");
+  render();
+}
+// Fetches without redrawing, so the board can fade between datasets.
+async function loadCandidatesQuiet() {
+  const mode = state.mode;
+  const data = await api("/api/candidates?dataset=" + mode);
+  if (mode !== state.mode) return;
+  state.candidates = data.candidates || [];
+  state.loaded = true;
+}
+
 /* ---------- Events ---------- */
 const selectedRoles = () => ROLES.filter((r) => state.roles[r]);
 function addFiles(list) {
@@ -1435,6 +1508,7 @@ document.addEventListener("click", async (ev) => {
     if (chip && canAnimate(chip)) chip.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(.9)" }], { duration: 160, easing: "ease-in" }).onfinish = done; else done();
     return;
   }
+  if (t.dataset.mode) { switchMode(t.dataset.mode); return; }
   if (t.dataset.lens) { if (state.lens !== t.dataset.lens) { state.lens = t.dataset.lens; render(); } return; }
   if (t.dataset.role) { state.roles[t.dataset.role] = !state.roles[t.dataset.role]; renderControls(); updateIntake(); return; }
   if (t.id === "gear") { state.settingsOpen = !state.settingsOpen; renderSettings(); return; }
@@ -1542,6 +1616,7 @@ $("#gate-form").addEventListener("submit", async (ev) => {
   } finally { $("#gate-go").disabled = false; }
 });
 
+try { const m = localStorage.getItem("kargo-desk-mode"); if (m === "sample" || m === "live") state.mode = m; } catch {}
 buildControls();
 renderSettings(); updateIntake(); renderControls(false); renderBoard();
 if (!authKey) showGate("");
